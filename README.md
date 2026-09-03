@@ -9,7 +9,14 @@ rendered as Slack-looking HTML for screenshots.
 Built for the [agent-swarm](../agent-swarm) Slack integration. Bun + TypeScript,
 no runtime dependencies.
 
-## Quick start
+## Install
+
+```bash
+bun add -d @desplega.ai/slack-mock          # from npm (once published)
+bun add -d github:desplega-ai/slack-mock    # or straight from the repo (Bun runs the TypeScript sources)
+```
+
+## Quick start (from a checkout)
 
 ```bash
 bun install
@@ -39,7 +46,7 @@ bun src/cli.ts screenshot http://127.0.0.1:4040/c/general --out general.png
 
 ```ts
 import { App } from "@slack/bolt";
-import { SlackMock } from "slack-mock";
+import { SlackMock } from "@desplega.ai/slack-mock";
 
 const slack = await SlackMock.start({ port: 0, manifest: "slack-manifest.json" });
 const app = new App({
@@ -94,6 +101,7 @@ bun test                      # unit and integration tests (real Bolt client)
 bun run test:e2e              # boots ../agent-swarm against the mock (AGENT_SWARM_REPO to override; needs agent-swarm PR #1310)
 bun run typecheck
 bun run lint
+bun run build                 # dist/ (JS for Bun + .d.ts); `bun run release` publishes, or push a v* tag
 ```
 
 ## Docs
