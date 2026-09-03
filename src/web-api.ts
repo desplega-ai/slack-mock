@@ -101,14 +101,6 @@ function channelInfo(store: Store, c: SlackChannel, actor: Actor): Record<string
   };
 }
 
-function page<T>(items: T[], has_more: boolean, next_cursor: string) {
-  return {
-    has_more,
-    response_metadata: { next_cursor },
-    ...({ items } as Record<string, unknown>),
-  };
-}
-
 export const handlers: Record<string, Handler> = {
   "auth.test": ({ store, actor }) => {
     const user = store.user(actor.userId);
@@ -538,8 +530,8 @@ export const handlers: Record<string, Handler> = {
     const triggerId = required(args, "trigger_id");
     const expires = ctx.triggerIds.get(triggerId);
     if (expires === undefined) throw new SlackApiError("invalid_trigger_id");
-    if (Date.now() > expires) throw new SlackApiError("expired_trigger_id");
     ctx.triggerIds.delete(triggerId);
+    if (Date.now() > expires) throw new SlackApiError("expired_trigger_id");
     const view = viewArg(args);
     if (view.type !== "modal")
       throw new SlackApiError("invalid_arguments", {
@@ -577,6 +569,7 @@ export const handlers: Record<string, Handler> = {
       blocks: Array.isArray(view.blocks) ? view.blocks : existing.blocks,
       hash: `${nowUnix()}.${slackId("", 6).toLowerCase()}`,
     });
+    ctx.store.onChangeEmit({ kind: "view.update", view: existing });
     return { view: publicView(existing) };
   },
 
@@ -665,7 +658,15 @@ function historyMessage(
 
 function viewArg(args: Args): Record<string, unknown> {
   const v = args.view;
-  if (typeof v === "string") return JSON.parse(v);
+  if (typeof v === "string") {
+    try {
+      return JSON.parse(v);
+    } catch {
+      throw new SlackApiError("invalid_arguments", {
+        response_metadata: { messages: ["[ERROR] view must be valid JSON"] },
+      });
+    }
+  }
   if (v && typeof v === "object") return v as Record<string, unknown>;
   throw new SlackApiError("invalid_arguments", {
     response_metadata: { messages: ["[ERROR] missing required field: view"] },
@@ -691,5 +692,3 @@ function cursorFor(offset: number): string {
 export function newTriggerId(): string {
   return `${nowUnix()}${Math.floor(Math.random() * 1e6)}.${slackId("", 10).toLowerCase()}.${nextTs().replace(".", "")}`;
 }
-
-export { page };

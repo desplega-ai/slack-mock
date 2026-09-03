@@ -148,10 +148,17 @@ export class Store {
   private replay(file: string): void {
     this.replaying = true;
     try {
+      let lineNo = 0;
       for (const line of readFileSync(file, "utf8").split("\n")) {
+        lineNo += 1;
         if (!line.trim()) continue;
-        const change = JSON.parse(line) as Change;
-        this.applyReplayed(change);
+        try {
+          this.applyReplayed(JSON.parse(line) as Change);
+        } catch (e) {
+          console.warn(
+            `[slack-mock] skipping corrupt journal line ${lineNo} in ${file}: ${e instanceof Error ? e.message : e}`,
+          );
+        }
       }
     } finally {
       this.replaying = false;
@@ -332,6 +339,7 @@ export class Store {
   archive(channelId: string): void {
     const channel = this.channel(channelId);
     if (channel.is_archived) throw new SlackApiError("already_archived");
+    if (channel.is_general) throw new SlackApiError("cant_archive_general");
     channel.is_archived = true;
     this.emit({ kind: "channel.update", channel });
   }
@@ -360,6 +368,28 @@ export class Store {
 
   findMessage(channelId: string, ts: string): SlackMessage | undefined {
     return this.messages.get(channelId)?.find((m) => m.ts === ts);
+  }
+
+  /** A message by ts, including ephemeral ones (used by response_url handling). */
+  findAnyMessage(channelId: string, ts: string): SlackMessage | undefined {
+    return (
+      this.findMessage(channelId, ts) ??
+      this.ephemerals.find((m) => m.channel === channelId && m.ts === ts)
+    );
+  }
+
+  /** Replace the content of an ephemeral message in place (no event, like Slack). */
+  updateEphemeral(channelId: string, ts: string, patch: Partial<SlackMessage>): SlackMessage {
+    const m = this.ephemerals.find((x) => x.channel === channelId && x.ts === ts);
+    if (!m) throw new SlackApiError("message_not_found");
+    Object.assign(m, patch);
+    return m;
+  }
+
+  deleteEphemeral(channelId: string, ts: string): void {
+    const i = this.ephemerals.findIndex((x) => x.channel === channelId && x.ts === ts);
+    if (i < 0) throw new SlackApiError("message_not_found");
+    this.ephemerals.splice(i, 1);
   }
 
   message(channelId: string, ts: string): SlackMessage {

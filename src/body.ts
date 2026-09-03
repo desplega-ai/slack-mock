@@ -14,10 +14,13 @@ const JSON_FIELDS = new Set([
   "icons",
   "user_ids",
   "types",
+  "chunks",
+  "loading_messages",
 ]);
 
 function coerce(key: string, value: string): unknown {
-  if (JSON_FIELDS.has(key) || value.startsWith("[") || value.startsWith("{")) {
+  // Only the fields the SDKs JSON-stringify are parsed; `text` and friends stay opaque strings.
+  if (JSON_FIELDS.has(key)) {
     try {
       return JSON.parse(value);
     } catch {

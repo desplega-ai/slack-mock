@@ -96,3 +96,32 @@ test("events drop without a connection and connection waits time out", async () 
   await expect(mock.waitForConnection(30)).rejects.toThrow("no Socket Mode connection");
   await mock.stop();
 });
+
+test("redelivery gives up after maxRetries and records the failure", async () => {
+  const mock = await SlackMock.start({ port: 0, ackTimeoutMs: 100, maxRetries: 1 });
+  try {
+    const open = await fetch(`${mock.apiUrl}apps.connections.open`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${mock.env.SLACK_APP_TOKEN}` },
+    });
+    const { url } = (await open.json()) as { url: string };
+    const ws = new WebSocket(url);
+    const frames: string[] = [];
+    await new Promise<void>((resolve) => {
+      ws.onmessage = (e) => {
+        frames.push(String(e.data));
+        if (frames.length === 1) resolve();
+      };
+    });
+    await mock.postMessage({ channel: "general", user: "alice", text: "never acked" });
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline && frames.length < 3) await Bun.sleep(20);
+    expect(frames.length).toBe(3);
+    const last = mock.deliveries().at(-1);
+    expect(last).toMatchObject({ acked: false, attempts: 2 });
+    expect(mock.hub.connectionCount).toBe(1);
+    ws.close();
+  } finally {
+    await mock.stop();
+  }
+});

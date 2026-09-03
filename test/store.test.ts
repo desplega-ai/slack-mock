@@ -34,7 +34,7 @@ test("JSONL restores users, channels, messages, and reactions", async () => {
 test("a manifest configures bot identity, commands, and event subscriptions", async () => {
   const mock = await SlackMock.start({
     port: 0,
-    manifest: "/Users/taras/Documents/code/agent-swarm/slack-manifest.json",
+    manifest: new URL("./fixtures/agent-swarm-manifest.json", import.meta.url).pathname,
   });
   const app: App = appFor(mock);
   await app.start();

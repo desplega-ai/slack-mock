@@ -24,10 +24,6 @@ export function nextTs(): string {
   return `${seconds}.${fraction}`;
 }
 
-export function tsToDate(ts: string): Date {
-  return new Date(Number.parseFloat(ts) * 1000);
-}
-
 export function nowUnix(): number {
   return Math.floor(Date.now() / 1000);
 }

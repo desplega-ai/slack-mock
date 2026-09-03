@@ -272,6 +272,7 @@ export class SlackMock {
       if (path.startsWith("/link/") || path === "/link") {
         const ticket = url.searchParams.get("ticket") ?? "";
         if (!this.hub.tickets.has(ticket)) return new Response("invalid ticket", { status: 403 });
+        this.hub.tickets.delete(ticket);
         if (server.upgrade(req, { data: { id: slackId("S", 6), ticket } })) return undefined;
         return new Response("upgrade failed", { status: 400 });
       }
@@ -423,7 +424,7 @@ export class SlackMock {
     const target = this.responseUrls.get(id);
     if (!target) return new Response("invalid response_url", { status: 404 });
     if (Date.now() > target.expires) return new Response("expired_url", { status: 410 });
-    const body = (await parseArgs(req)) as {
+    let body: {
       text?: string;
       blocks?: unknown[];
       attachments?: unknown[];
@@ -432,19 +433,32 @@ export class SlackMock {
       delete_original?: boolean | string;
       thread_ts?: string;
     };
-    const isTrue = (v: unknown) => v === true || v === "true";
-    if (isTrue(body.delete_original) && target.messageTs) {
-      this.store.deleteMessage(target.channel, target.messageTs);
-      return new Response("ok");
-    }
-    if (isTrue(body.replace_original) && target.messageTs) {
-      this.store.updateMessage(
-        target.channel,
-        target.messageTs,
-        { text: body.text ?? "", blocks: body.blocks, attachments: body.attachments },
-        this.store.bot.userId,
+    try {
+      body = (await parseArgs(req)) as typeof body;
+    } catch (e) {
+      return Response.json(
+        { ok: false, error: "invalid_payload", detail: String(e) },
+        { status: 400 },
       );
-      return new Response("ok");
+    }
+    const isTrue = (v: unknown) => v === true || v === "true";
+    try {
+      if (isTrue(body.delete_original) && target.messageTs) {
+        if (this.store.findMessage(target.channel, target.messageTs))
+          this.store.deleteMessage(target.channel, target.messageTs);
+        else this.store.deleteEphemeral(target.channel, target.messageTs);
+        return new Response("ok");
+      }
+      if (isTrue(body.replace_original) && target.messageTs) {
+        const patch = { text: body.text ?? "", blocks: body.blocks, attachments: body.attachments };
+        if (this.store.findMessage(target.channel, target.messageTs))
+          this.store.updateMessage(target.channel, target.messageTs, patch, this.store.bot.userId);
+        else this.store.updateEphemeral(target.channel, target.messageTs, patch);
+        return new Response("ok");
+      }
+    } catch (e) {
+      if (e instanceof SlackApiError) return Response.json({ ok: false, error: e.code });
+      throw e;
     }
     this.postAsBot({
       channel: target.channel,
@@ -869,7 +883,42 @@ export class SlackMock {
       triggerId: this.issueTriggerId(),
     });
     const ack = await this.hub.send("interactive", payload, true);
-    this.store.views.delete(view.id);
+    // Slack keeps the modal open on `errors`, swaps it on `update`, stacks on `push`, closes otherwise.
+    const response = (ack.payload ?? {}) as {
+      response_action?: string;
+      view?: Record<string, unknown>;
+      errors?: Record<string, string>;
+    };
+    if (response.response_action === "errors") {
+      view.state = { values: input.values };
+    } else if (response.response_action === "update" && response.view) {
+      Object.assign(view, {
+        callback_id: response.view.callback_id ?? view.callback_id,
+        private_metadata: response.view.private_metadata ?? view.private_metadata,
+        title: response.view.title ?? view.title,
+        submit: response.view.submit ?? view.submit,
+        blocks: Array.isArray(response.view.blocks) ? response.view.blocks : view.blocks,
+      });
+    } else if (response.response_action === "push" && response.view) {
+      this.store.openView({
+        type: "modal",
+        callback_id: response.view.callback_id as string | undefined,
+        private_metadata: (response.view.private_metadata as string | undefined) ?? "",
+        title: response.view.title,
+        submit: response.view.submit,
+        close: response.view.close,
+        blocks: Array.isArray(response.view.blocks) ? response.view.blocks : [],
+        opened_by: user.id,
+        trigger_id: payload.trigger_id as string,
+        state: { values: {} },
+        clear_on_close: false,
+        notify_on_close: false,
+      });
+    } else if (response.response_action === "clear") {
+      this.store.views.clear();
+    } else {
+      this.store.views.delete(view.id);
+    }
     await this.flush();
     return ack;
   }
