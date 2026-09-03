@@ -1,6 +1,6 @@
 # Hosted demo: https://demo.slack-mock.dev
 app = "slack-mock-demo"
-primary_region = "mad"
+primary_region = "cdg"
 
 [build]
 
