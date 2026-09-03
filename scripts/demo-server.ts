@@ -32,6 +32,7 @@ const mock = await SlackMock.start({
   publicUrl: process.env.PUBLIC_URL || undefined,
   adminAuth: process.env.ADMIN_AUTH || undefined,
   publicUi: flag(process.env.UI_PUBLIC, false),
+  presenterAuth: process.env.PRESENTER_AUTH || undefined,
   manifest: process.env.MANIFEST || undefined,
   appName: process.env.APP_NAME || "demo-bot",
   botToken: process.env.SLACK_MOCK_BOT_TOKEN || undefined,

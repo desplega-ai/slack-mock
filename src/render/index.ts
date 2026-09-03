@@ -32,6 +32,10 @@ export interface RenderOptions {
   panelWidth?: string;
   /** "panel" (default) shows the thread beside the channel, "full" shows it alone. */
   threadView?: "panel" | "full";
+  /** Push changes over SSE and flash new messages (default true; `?live=0` turns it off). */
+  live?: boolean;
+  /** Reading is open but posting needs a credential: the composer shows a presenter sign-in. */
+  writeGated?: boolean;
 }
 
 const DEFAULT_PANEL_WIDTH = "50%";
@@ -148,6 +152,19 @@ a:hover{text-decoration:underline}
 .sm-eph-note{font-size:12px;color:#8a6d1a;margin-top:4px}
 .sm-stream{display:inline-block;margin-left:4px;color:#616061;font-weight:700;animation:sm-pulse 1s ease-in-out infinite}
 @keyframes sm-pulse{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes sm-flash{0%{background:#fff3bf}100%{background:transparent}}
+@keyframes sm-flash-soft{0%{background:#eaf3ff}100%{background:transparent}}
+.sm-msg-new{animation:sm-flash 2.4s ease-out}
+.sm-msg-changed{animation:sm-flash-soft .9s ease-out}
+@media (prefers-reduced-motion:reduce){.sm-msg-new,.sm-msg-changed{animation:none}}
+.sm-live{font-size:11px;font-weight:600;color:#2eb67d;margin-left:10px;vertical-align:middle}
+.sm-live-off{color:#e8912d}
+.sm-composer-lock{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 2px;font-size:13px;color:#616061}
+.sm-composer-lock[hidden]{display:none}
+.sm-composer-lock input{font:inherit;font-size:13px;padding:5px 8px;border:1px solid #bbb;border-radius:4px;width:130px}
+.sm-composer-lock .sm-lock-go{font:inherit;font-size:13px;padding:5px 10px;border:1px solid #1264a3;border-radius:4px;background:#1264a3;color:#fff;cursor:pointer}
+.sm-composer-lock .sm-err{color:#e01e5a}
+.sm-composer-text:disabled{background:#f8f8f8;color:#888}
 
 .sm-pill{background:#e8f5fa;color:#1264a3;border-radius:3px;padding:0 2px}
 .sm-link{color:#1264a3}
@@ -459,7 +476,7 @@ function renderMessage(
       ? `<span class="sm-stream" title="streaming">•••</span>`
       : "";
   const open = flags.openTs && flags.openTs === m.ts ? " sm-msg-open" : "";
-  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
+  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}" data-ts="${escapeHtml(m.ts)}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
 }
 
 function renderMessageList(
@@ -643,7 +660,11 @@ function composer(
     .join("");
   const placeholder = threadTs ? "Reply in thread" : `Message ${channelLabel(store, channel)}`;
   const thread = threadTs ? ` data-thread="${escapeHtml(threadTs)}"` : "";
-  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}><div class="sm-mentions"></div><div class="sm-composer-box"><textarea class="sm-composer-text" rows="2" placeholder="${escapeHtml(placeholder)}"></textarea><div class="sm-composer-row"><select class="sm-composer-user" aria-label="Post as">${options}</select><button type="button" class="sm-composer-send">Send</button></div></div><div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention</div></div>`;
+  const gated = opts.writeGated ? ' data-gated="1"' : "";
+  const lock = opts.writeGated
+    ? `<div class="sm-composer-lock" hidden><span>Reading is open. Sign in to post.</span><input class="sm-lock-user" placeholder="user" autocomplete="username"><input class="sm-lock-pass" type="password" placeholder="password" autocomplete="current-password"><button type="button" class="sm-lock-go">Sign in</button><span class="sm-err"></span></div>`
+    : "";
+  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}${gated}><div class="sm-mentions"></div><div class="sm-composer-box"><textarea class="sm-composer-text" rows="2" placeholder="${escapeHtml(placeholder)}" data-placeholder="${escapeHtml(placeholder)}"></textarea><div class="sm-composer-row"><select class="sm-composer-user" aria-label="Post as">${options}</select><button type="button" class="sm-composer-send">Send</button></div></div>${lock}<div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention<span class="sm-lock-state"></span></div></div>`;
 }
 
 /** Mention targets for the composer autocomplete: every user, bots included. */
@@ -685,7 +706,31 @@ if(handle){
 var raw=document.getElementById("sm-users");
 var PEOPLE=(raw?JSON.parse(raw.textContent||"[]"):[]).concat([{name:"here",real:"Notify everyone online",initials:"@",color:"#616061"},{name:"channel",real:"Notify everyone in the channel",initials:"@",color:"#616061"}]);
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;"})}
-function send(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim();if(!text)return;var body={channel:box.dataset.channel,user:box.querySelector(".sm-composer-user").value,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}).then(function(){location.reload()}).catch(function(){t.disabled=false})}
+var GATED=${opts.writeGated ? "true" : "false"},LIVE=${opts.live !== false && !opts.refreshSec ? "true" : "false"},CK="sm-presenter";
+function cred(){try{return localStorage.getItem(CK)||""}catch(e){return ""}}
+function setCred(v){try{if(v)localStorage.setItem(CK,v);else localStorage.removeItem(CK)}catch(e){}}
+(function(){var m=/[#&]presenter=([^&]+)/.exec(location.hash||"");if(m){setCred(btoa(decodeURIComponent(m[1])));history.replaceState(null,"",location.pathname+location.search)}})();
+function authHeaders(h){var c=cred();if(c)h.authorization="Basic "+c;return h}
+function lockUi(){document.querySelectorAll(".sm-composer").forEach(function(box){var locked=GATED&&!cred(),lock=box.querySelector(".sm-composer-lock"),ta=box.querySelector(".sm-composer-text"),btn=box.querySelector(".sm-composer-send"),state=box.querySelector(".sm-lock-state");if(lock)lock.hidden=!locked;ta.disabled=locked;btn.disabled=locked;ta.placeholder=locked?"Sign in to post":(ta.dataset.placeholder||"");if(state)state.innerHTML=GATED&&!locked?' · signed in · <a href="#" class="sm-lock-out">Sign out</a>':""})}
+function signIn(box){if(!box)return;var u=box.querySelector(".sm-lock-user").value.trim(),p=box.querySelector(".sm-lock-pass").value,err=box.querySelector(".sm-err");if(!u){err.textContent="Enter the presenter user";return}var c=btoa(u+":"+p);err.textContent="";fetch("/mock/presenter",{headers:{authorization:"Basic "+c}}).then(function(r){if(!r.ok)throw new Error(r.status===401||r.status===403?"Wrong user or password":"Sign-in failed ("+r.status+")");setCred(c);lockUi();box.querySelector(".sm-composer-text").focus()}).catch(function(e){err.textContent=e.message})}
+document.addEventListener("click",function(e){var out=e.target.closest(".sm-lock-out");if(out){e.preventDefault();setCred("");lockUi();return}var go=e.target.closest(".sm-lock-go");if(go)signIn(go.closest(".sm-composer"))});
+document.addEventListener("keydown",function(e){var c=e.target.classList;if(e.key==="Enter"&&c&&(c.contains("sm-lock-pass")||c.contains("sm-lock-user"))){e.preventDefault();signIn(e.target.closest(".sm-composer"))}});
+lockUi();
+var pending=null;
+function refresh(){if(pending)return;pending=setTimeout(function(){pending=null;fetch(location.href,{headers:{accept:"text/html"},credentials:"same-origin"}).then(function(r){return r.ok?r.text():Promise.reject(r.status)}).then(apply).catch(function(){})},120)}
+function apply(html){var doc=new DOMParser().parseFromString(html,"text/html");[".sm-side",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});if(doc.title)document.title=doc.title}
+if(LIVE&&window.EventSource){
+ var box0=document.querySelector(".sm-composer"),pm=/^\\/c\\/([^/]+)/.exec(location.pathname),chan=box0?box0.dataset.channel:(pm?decodeURIComponent(pm[1]):null);
+ if(chan){
+  var h1=document.querySelector(".sm-top h1"),dot=null;
+  if(h1){dot=document.createElement("span");dot.className="sm-live";dot.textContent="● live";h1.appendChild(dot)}
+  var es=new EventSource("/c/"+encodeURIComponent(chan)+"/events"),down=false;
+  es.addEventListener("change",refresh);
+  es.onopen=function(){if(dot){dot.textContent="● live";dot.classList.remove("sm-live-off")}if(down){down=false;refresh()}};
+  es.onerror=function(){down=true;if(dot){dot.textContent="● reconnecting";dot.classList.add("sm-live-off")}};
+ }
+}
+function send(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim();if(!text||t.disabled)return;var body={channel:box.dataset.channel,user:box.querySelector(".sm-composer-user").value,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:authHeaders({"content-type":"application/json"}),body:JSON.stringify(body)}).then(function(r){t.disabled=false;if(r.status===401||r.status===403){setCred("");lockUi();var err=box.querySelector(".sm-err");if(err)err.textContent="Not signed in, or the credential changed. Sign in to post.";return}if(!r.ok)throw new Error("send failed "+r.status);t.value="";if(LIVE)refresh();else location.reload()}).catch(function(){t.disabled=false})}
 document.querySelectorAll(".sm-composer").forEach(function(box){
  var ta=box.querySelector(".sm-composer-text"),menu=box.querySelector(".sm-mentions"),items=[],active=0;
  function close(){items=[];menu.style.display="none"}
