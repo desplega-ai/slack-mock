@@ -64,6 +64,8 @@ export interface SlackMockOptions extends StoreOptions {
   triggerIdTtlMs?: number;
   /** Delay before each event is pushed (emulates Slack latency). */
   eventDelayMs?: number;
+  /** Default width of the thread side panel in the HTML UI, e.g. "50%" or "640px". `?panel=` overrides per request. */
+  panelWidth?: string;
   log?: boolean | ((msg: string) => void);
 }
 
@@ -479,10 +481,19 @@ export class SlackMock {
   private handleUi(path: string, url: URL): Response {
     const screenshot = url.searchParams.has("screenshot");
     const refresh = Number(url.searchParams.get("refresh"));
+    const panel = url.searchParams.get("panel") ?? this.opts.panelWidth;
     const opts = {
       screenshot,
       refreshSec: Number.isFinite(refresh) && refresh > 0 ? refresh : undefined,
       connections: this.hub.connectionCount,
+      panelWidth: panel
+        ? /^\d+$/.test(panel)
+          ? `${panel}%`
+          : /^\d+(px|%|vw|rem)$/.test(panel)
+            ? panel
+            : undefined
+        : undefined,
+      threadView: url.searchParams.has("full") ? ("full" as const) : ("panel" as const),
     };
     let html: string;
     if (path === "/" || path === "") html = renderPage(this.store, { kind: "index" }, opts);
@@ -656,6 +667,19 @@ export class SlackMock {
     const u = [...this.store.users.values()].find((x) => !x.is_bot);
     if (!u) throw new Error("no human user in the workspace; call addUser first");
     return u;
+  }
+
+  /** Turn `@name` and `@here` / `@channel` in human-typed text into Slack mention syntax. */
+  resolveMentions(text: string): string {
+    const byName = new Map<string, string>();
+    for (const u of this.store.users.values()) byName.set(u.name.toLowerCase(), u.id);
+    return text.replace(/(^|[^<\w])@([\w.-]+)/g, (whole, lead: string, name: string) => {
+      const lower = name.toLowerCase();
+      if (lower === "here" || lower === "channel" || lower === "everyone")
+        return `${lead}<!${lower}>`;
+      const id = byName.get(lower);
+      return id ? `${lead}<@${id}>` : whole;
+    });
   }
 
   /** A human posts a message; resolves once the app acked the resulting events. */
@@ -1048,8 +1072,14 @@ export class SlackMock {
         return json(this.addChannel(body as unknown as AddChannelInput));
       if (path === "users" && req.method === "POST")
         return json(this.addUser(body as unknown as AddUserInput));
-      if (path === "messages" && req.method === "POST")
-        return json(wireMessage(await this.postMessage(body as unknown as PostMessageInput)));
+      if (path === "messages" && req.method === "POST") {
+        const input = body as unknown as PostMessageInput;
+        return json(
+          wireMessage(
+            await this.postMessage({ ...input, text: this.resolveMentions(input.text ?? "") }),
+          ),
+        );
+      }
       if (path === "messages" && req.method === "GET") {
         const q: MessageQuery = Object.fromEntries(url.searchParams) as MessageQuery;
         return json(this.findMessages(q).map(wireMessage));
