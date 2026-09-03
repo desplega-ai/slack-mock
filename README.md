@@ -120,7 +120,7 @@ docker build -t slack-mock-demo . && docker run -p 8080:8080 -e ADMIN_AUTH=demo:
 CLI (`--public-url`, `--auth`) and as `SlackMockOptions` (`publicUrl`, `adminAuth`).
 
 The same image also serves a workspace for an *external* bot, the Agent Swarm demo at
-https://swarm.slack-mock.dev (`fly.swarm.toml`, app `slack-mock-swarm`). Knobs that make
+https://swarm-demo.slack-mock.dev (`fly.swarm.toml`, app `slack-mock-swarm`). Knobs that make
 that possible, all read by `scripts/demo-server.ts`:
 
 | Env | Effect |

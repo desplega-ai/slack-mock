@@ -119,7 +119,7 @@ CNAME in Vercel (desplega-labs team) to the app's Fly hostname. The package is
 published to npm as `@desplega.ai/slack-mock` by `release.yml` whenever the
 version in `package.json` changes on `main`.
 
-A second app, `slack-mock-swarm` (`fly.swarm.toml`, `swarm.slack-mock.dev`), runs
+A second app, `slack-mock-swarm` (`fly.swarm.toml`, `swarm-demo.slack-mock.dev`), runs
 the same image as a workspace for the Agent Swarm demo swarm: `DEMO_BOT=off`,
 tokens and `ADMIN_AUTH` from the app secrets, `UI_PUBLIC=true` so visitors can
 read the channels while `/mock/*` stays gated, `SEED_FILE=seeds/agent-swarm-demo.json`

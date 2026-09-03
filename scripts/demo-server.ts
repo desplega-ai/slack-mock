@@ -1,6 +1,6 @@
 // Hosted demo entrypoint (Dockerfile CMD). One image, two deployments:
 //   - demo.slack-mock.dev: the library's own demo, mock + demo bot, defaults below.
-//   - swarm.slack-mock.dev: a workspace for an external bot (Agent Swarm). DEMO_BOT=off,
+//   - swarm-demo.slack-mock.dev: a workspace for an external bot (Agent Swarm). DEMO_BOT=off,
 //     custom tokens, a seed file and the prompt driver.
 // Env: PORT, HOST, DATA_FILE, PUBLIC_URL, ADMIN_AUTH ("user:pass"), UI_PUBLIC ("true" keeps the
 // HTML UI readable while ADMIN_AUTH gates /mock/*), RESET_EVERY_HOURS, MANIFEST, APP_NAME,
