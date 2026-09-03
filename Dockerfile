@@ -4,6 +4,7 @@ COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY src ./src
 COPY scripts ./scripts
+COPY seeds ./seeds
 COPY tsconfig.json ./
 ENV PORT=8080 HOST=0.0.0.0 DATA_FILE=/data/slack.jsonl
 RUN mkdir -p /data

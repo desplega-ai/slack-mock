@@ -1,0 +1,205 @@
+{
+  "users": [
+    {
+      "id": "U0DANA0000",
+      "name": "dana",
+      "real_name": "Dana Okafor",
+      "email": "dana@northwind.example",
+      "is_admin": true,
+      "tz": "Europe/Madrid"
+    },
+    {
+      "id": "U0ALICE000",
+      "name": "alice",
+      "real_name": "Alice Novak",
+      "email": "alice@northwind.example",
+      "tz": "Europe/Berlin"
+    },
+    {
+      "id": "U0BRUNO000",
+      "name": "bruno",
+      "real_name": "Bruno Reyes",
+      "email": "bruno@northwind.example",
+      "tz": "Europe/Madrid"
+    },
+    {
+      "id": "U0CHEN0000",
+      "name": "chen",
+      "real_name": "Chen Wu",
+      "email": "chen@northwind.example",
+      "tz": "Europe/London"
+    },
+    {
+      "id": "U0PRIYA000",
+      "name": "priya",
+      "real_name": "Priya Nair",
+      "email": "priya@northwind.example",
+      "tz": "Europe/Lisbon"
+    }
+  ],
+  "channels": [
+    {
+      "id": "C0GENERAL0",
+      "name": "general",
+      "creator": "dana",
+      "members": ["dana", "alice", "bruno", "chen", "priya"],
+      "purpose": "Company-wide announcements",
+      "topic": "Northwind Labs, a 12-person B2B SaaS. This workspace is a live demo of Agent Swarm."
+    },
+    {
+      "id": "C0ASKSWARM",
+      "name": "ask-the-swarm",
+      "creator": "dana",
+      "members": ["dana", "alice", "bruno", "chen", "priya"],
+      "purpose": "Hand work to the swarm",
+      "topic": "Mention @Agent Swarm with a request. It answers in a thread."
+    },
+    {
+      "id": "C0ENGINEER",
+      "name": "engineering",
+      "creator": "chen",
+      "members": ["chen", "alice", "dana"],
+      "purpose": "Engineering",
+      "topic": "Backend, frontend, infra."
+    },
+    {
+      "id": "C0SALES000",
+      "name": "sales",
+      "creator": "bruno",
+      "members": ["bruno", "dana", "priya"],
+      "purpose": "Pipeline and deals",
+      "topic": "Q3 target: 40 new accounts."
+    },
+    {
+      "id": "C0SUPPORT0",
+      "name": "support",
+      "creator": "priya",
+      "members": ["priya", "chen", "alice"],
+      "purpose": "Customer support",
+      "topic": "Tickets, escalations, release notes."
+    },
+    {
+      "id": "C0OPS00000",
+      "name": "ops",
+      "creator": "alice",
+      "members": ["alice", "dana"],
+      "purpose": "Operations",
+      "topic": "Vendors, invoices, onboarding."
+    }
+  ],
+  "messages": [
+    {
+      "channel": "general",
+      "text": "This is a live demo of Agent Swarm. Everything here is a mock Slack workspace for a fictional company, Northwind Labs. The people are made up. The swarm is real: it runs on a small server, reads these channels, and replies in threads. Watch #ask-the-swarm."
+    },
+    {
+      "channel": "general",
+      "user": "dana",
+      "text": "Morning all. Board update goes out Friday, so please keep #ops and #sales current this week."
+    },
+    {
+      "channel": "general",
+      "user": "chen",
+      "text": "Release 2.14 is out. Changelog in #engineering."
+    },
+    {
+      "channel": "engineering",
+      "user": "chen",
+      "text": "2.14 shipped: new invoice export, faster search index, fixed the timezone bug in reminders. Next up is the webhook retry queue."
+    },
+    {
+      "channel": "engineering",
+      "user": "alice",
+      "text": "Reminder that the staging database resets every Sunday night."
+    },
+    {
+      "channel": "sales",
+      "user": "bruno",
+      "text": "Pipeline this week: 14 open deals, 3 in legal review, 2 waiting on security questionnaires."
+    },
+    {
+      "channel": "sales",
+      "user": "priya",
+      "text": "Acme asked for a comparison sheet against Contoso. I will draft one."
+    },
+    {
+      "channel": "support",
+      "user": "priya",
+      "text": "Ticket volume is up 20% since 2.14. Most are questions about the new export."
+    },
+    {
+      "channel": "ops",
+      "user": "alice",
+      "text": "Three new hires start next Monday. Laptops ordered, accounts pending."
+    },
+    {
+      "channel": "ask-the-swarm",
+      "user": "dana",
+      "text": "Team, this channel is for the swarm. Mention it with a request and it takes it from there."
+    }
+  ],
+  "driver": {
+    "prompts": [
+      {
+        "channel": "ask-the-swarm",
+        "user": "priya",
+        "text": "<@bot> write a short FAQ entry for customers asking how the new invoice export works. Three questions, plain language."
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "chen",
+        "text": "<@bot> review this function and list any bugs:\n```\nfunction retryDelayMs(attempt) {\n  const base = 200;\n  return Math.min(base * 2 ** attempt, 30000) + Math.random() * 100;\n}\n```"
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "bruno",
+        "text": "<@bot> draft a two-paragraph follow-up email to a prospect who went quiet after a demo two weeks ago. Friendly, no pressure."
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "alice",
+        "text": "<@bot> turn these notes into a checklist for onboarding a new engineer: laptop, GitHub org, staging access, 1:1 with lead, read the runbook, first PR in week one."
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "dana",
+        "text": "<@bot> summarize what changed in release 2.14 for the board update. Two sentences, non-technical."
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "chen",
+        "text": "<@bot> write a SQL query that lists customers with more than 3 support tickets in the last 30 days. Tables: customers(id, name), tickets(id, customer_id, created_at)."
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "priya",
+        "text": "<@bot> a customer says reminders fire one hour late since the update. Give me three questions to ask them before I escalate."
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "bruno",
+        "text": "<@bot> we have 14 open deals and a target of 40 new accounts this quarter. Suggest a simple weekly tracking format for the sales channel."
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "alice",
+        "text": "<@bot> propose a rollout plan for the webhook retry queue: staging first, then 10% of customers, then everyone. Include what to watch at each step."
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "dana",
+        "text": "<@bot> give me a five-line status update for the company all-hands based on what you can see in this workspace."
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "chen",
+        "text": "<@bot> explain the difference between an exponential backoff and a fixed retry interval to a junior engineer, in five sentences."
+      },
+      {
+        "channel": "ask-the-swarm",
+        "user": "priya",
+        "text": "<@bot> draft release notes for customers about the faster search index. Keep it under 80 words."
+      }
+    ]
+  }
+}

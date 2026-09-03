@@ -1,23 +1,56 @@
-// Hosted demo entrypoint (Docker / Fly): the mock plus the demo bot in one process.
-// Env: PORT, HOST, DATA_FILE, PUBLIC_URL, ADMIN_AUTH ("user:pass"), RESET_EVERY_HOURS, MANIFEST.
+// Hosted demo entrypoint (Dockerfile CMD). One image, two deployments:
+//   - demo.slack-mock.dev: the library's own demo, mock + demo bot, defaults below.
+//   - swarm.slack-mock.dev: a workspace for an external bot (Agent Swarm). DEMO_BOT=off,
+//     custom tokens, a seed file and the prompt driver.
+// Env: PORT, HOST, DATA_FILE, PUBLIC_URL, ADMIN_AUTH ("user:pass"), UI_PUBLIC ("true" keeps the
+// HTML UI readable while ADMIN_AUTH gates /mock/*), RESET_EVERY_HOURS, MANIFEST, APP_NAME,
+// DEMO_BOT ("off" skips the built-in bot), SLACK_MOCK_BOT_TOKEN / SLACK_MOCK_APP_TOKEN (the
+// tokens the app must present; defaults are public knowledge, so set them on any shared host),
+// SEED_FILE (JSON, see scripts/seed.ts) and DRIVER_INTERVAL_MINUTES (0 = off).
 import { existsSync, rmSync } from "node:fs";
 import { SlackMock } from "../src/index.ts";
 import { startDemoBot } from "./demo-bot.ts";
+import { startDriver } from "./driver.ts";
+import { applySeed, loadSeedFile } from "./seed.ts";
+
+const flag = (value: string | undefined, fallback: boolean): boolean => {
+  const v = value?.trim().toLowerCase();
+  if (!v) return fallback;
+  return v === "1" || v === "true" || v === "on" || v === "yes";
+};
 
 const port = Number(process.env.PORT ?? 8080);
 const dataFile = process.env.DATA_FILE || undefined;
+const seedFile = process.env.SEED_FILE || undefined;
+const demoBot = flag(process.env.DEMO_BOT, true);
+const seed = seedFile ? loadSeedFile(seedFile) : undefined;
+
 const mock = await SlackMock.start({
   port,
   host: process.env.HOST ?? "127.0.0.1",
   dataFile,
   publicUrl: process.env.PUBLIC_URL || undefined,
   adminAuth: process.env.ADMIN_AUTH || undefined,
+  publicUi: flag(process.env.UI_PUBLIC, false),
   manifest: process.env.MANIFEST || undefined,
-  appName: "demo-bot",
+  appName: process.env.APP_NAME || "demo-bot",
+  botToken: process.env.SLACK_MOCK_BOT_TOKEN || undefined,
+  appToken: process.env.SLACK_MOCK_APP_TOKEN || undefined,
+  // A seed file replaces the built-in #general/alice/bob workspace.
+  seed: seed === undefined,
   log: true,
 });
 
-if (mock.messages("general").length === 0) {
+if (seed) {
+  if (mock.store.channels.size === 0) {
+    const created = applySeed(mock, seed);
+    console.log(
+      `[demo] seeded ${created.users} users, ${created.channels} channels, ${created.messages} messages from ${seedFile}`,
+    );
+  } else {
+    console.log("[demo] journal already has channels; seed file not applied");
+  }
+} else if (mock.messages("general").length === 0) {
   const bot = mock.bot.userId;
   const welcome = mock.store.addMessage({
     channel: "C0GENERAL0",
@@ -48,18 +81,27 @@ if (mock.messages("general").length === 0) {
   void welcome;
 }
 
-await startDemoBot(mock);
-await mock.waitForConnection(15_000).catch(() => {});
-if (mock.messages("general").length <= 1) {
-  // First boot: let visitors see a finished thread right away.
-  await mock
-    .postMessage({
-      channel: "general",
-      user: "alice",
-      text: `<@${mock.bot.userId}> show me what you can do`,
-    })
-    .catch(() => {});
+if (demoBot) {
+  await startDemoBot(mock);
+  await mock.waitForConnection(15_000).catch(() => {});
+  if (!seed && mock.messages("general").length <= 1) {
+    await mock
+      .postMessage({
+        channel: "general",
+        user: "alice",
+        text: `<@${mock.bot.userId}> show me what you can do`,
+      })
+      .catch(() => {});
+  }
+} else {
+  console.log("[demo] built-in demo bot is off; waiting for an external app over Socket Mode");
 }
+
+const driverMinutes = Number(process.env.DRIVER_INTERVAL_MINUTES ?? 0);
+if (driverMinutes > 0 && seed?.driver?.prompts?.length) {
+  startDriver(mock, { intervalMinutes: driverMinutes, prompts: seed.driver.prompts });
+}
+
 console.log(`demo ready at ${mock.baseUrl} (local ${mock.localUrl})`);
 
 const resetHours = Number(process.env.RESET_EVERY_HOURS ?? 0);

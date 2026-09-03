@@ -75,6 +75,11 @@ export interface SlackMockOptions extends StoreOptions {
   publicUrl?: string;
   /** "user:password" HTTP basic auth for the HTML UI and the /mock admin API (the Slack API stays token-based). */
   adminAuth?: string;
+  /**
+   * Keep the HTML UI ("/" and "/c/...") readable without credentials while `adminAuth` still gates
+   * the /mock admin API. Default false: `adminAuth` covers both surfaces.
+   */
+  publicUi?: boolean;
   log?: boolean | ((msg: string) => void);
 }
 
@@ -299,6 +304,10 @@ export class SlackMock {
   get bot() {
     return this.store.bot;
   }
+  /** Number of Socket Mode connections the app currently holds. */
+  get connectionCount(): number {
+    return this.hub.connectionCount;
+  }
 
   get team() {
     return this.store.team;
@@ -315,8 +324,8 @@ export class SlackMock {
     const path = url.pathname;
     this.lastRequestAt = Date.now();
     try {
-      const isAdminSurface =
-        path.startsWith("/mock/") || path === "/" || path === "" || path.startsWith("/c/");
+      const isUiSurface = path === "/" || path === "" || path.startsWith("/c/");
+      const isAdminSurface = path.startsWith("/mock/") || (isUiSurface && !this.opts.publicUi);
       if (isAdminSurface && !this.authorizedAdmin(req)) {
         return new Response("authentication required", {
           status: 401,
