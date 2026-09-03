@@ -45,13 +45,21 @@ if (mock.messages("general").length === 0) {
       },
     ],
   });
-  await mock
-    .postMessage({ channel: "general", user: "alice", text: `<@${bot}> show me what you can do` })
-    .catch(() => {});
   void welcome;
 }
 
 await startDemoBot(mock);
+await mock.waitForConnection(15_000).catch(() => {});
+if (mock.messages("general").length <= 1) {
+  // First boot: let visitors see a finished thread right away.
+  await mock
+    .postMessage({
+      channel: "general",
+      user: "alice",
+      text: `<@${mock.bot.userId}> show me what you can do`,
+    })
+    .catch(() => {});
+}
 console.log(`demo ready at ${mock.baseUrl} (local ${mock.localUrl})`);
 
 const resetHours = Number(process.env.RESET_EVERY_HOURS ?? 0);
