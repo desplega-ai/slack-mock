@@ -750,6 +750,11 @@ document.querySelectorAll(".sm-composer").forEach(function(box){
  ta.addEventListener("blur",function(){setTimeout(close,150)});
  menu.addEventListener("mousedown",function(e){var el=e.target.closest(".sm-mention");if(el){e.preventDefault();pick(Number(el.dataset.i))}});
  ta.addEventListener("keydown",function(e){
+  if(e.key==="Backspace"&&ta.selectionStart===ta.selectionEnd&&ta.selectionStart>0){
+   var pos=ta.selectionStart,before=ta.value.slice(0,pos),hit="";
+   for(var k=0;k<PEOPLE.length;k++){var tok="@"+PEOPLE[k].name;var cand=before.endsWith(tok)?tok:"";if(cand&&cand.length>hit.length){var at=before.length-cand.length;if(at===0||/s/.test(before.charAt(at-1)))hit=cand}}
+   if(hit){e.preventDefault();ta.value=before.slice(0,before.length-hit.length)+ta.value.slice(pos);ta.selectionStart=ta.selectionEnd=pos-hit.length;close();return}
+  }
   if(items.length){
    if(e.key==="ArrowDown"){e.preventDefault();active=(active+1)%items.length;paint();return}
    if(e.key==="ArrowUp"){e.preventDefault();active=(active-1+items.length)%items.length;paint();return}

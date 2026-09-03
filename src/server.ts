@@ -818,10 +818,23 @@ export class SlackMock {
   }
 
   /** Turn `@name` and `@here` / `@channel` in human-typed text into Slack mention syntax. */
+  /**
+   * Turn `@name` / `@Display Name` / `@here` into Slack mention syntax. Handles names with
+   * spaces (the app user is often "Agent Swarm"), matching the longest known name first,
+   * case-insensitively, against both `name` and `real_name`.
+   */
   resolveMentions(text: string): string {
     const byName = new Map<string, string>();
-    for (const u of this.store.users.values()) byName.set(u.name.toLowerCase(), u.id);
-    return text.replace(/(^|[^<\w])@([\w.-]+)/g, (whole, lead: string, name: string) => {
+    for (const u of this.store.users.values()) {
+      if (u.deleted) continue;
+      byName.set(u.name.toLowerCase(), u.id);
+      if (u.real_name) byName.set(u.real_name.toLowerCase(), u.id);
+    }
+    const names = [...byName.keys(), "here", "channel", "everyone"]
+      .sort((a, b) => b.length - a.length)
+      .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const re = new RegExp(`(^|[^<\\w])@(${names.join("|")})(?![\\w.-])`, "gi");
+    return text.replace(re, (whole: string, lead: string, name: string) => {
       const lower = name.toLowerCase();
       if (lower === "here" || lower === "channel" || lower === "everyone")
         return `${lead}<!${lower}>`;
