@@ -403,7 +403,58 @@ describe("renderPage", () => {
     expect(html).toContain("t=xoxb-mock-bot-token");
     expect(html).toContain("sm-reaction");
     expect(html).toContain("✅");
-    expect(html).not.toContain("Only visible to you");
+    // The thread pane itself never shows ephemerals; only the channel column does.
+    const shot = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { screenshot: true },
+    );
+    expect(shot).not.toContain("Only visible to you");
+  });
+
+  test("thread page renders the channel next to a thread side panel", () => {
+    const { store, channel, human } = workspace();
+    const html = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
+    expect(html).toContain(`<div class="sm-app sm-app-thread">`);
+    expect(html).toContain(`<nav class="sm-side">`);
+    expect(html).toContain(`<aside class="sm-panel">`);
+    expect(html).toContain(`<h2 class="sm-panel-title">Thread</h2>`);
+    expect(html).toContain(`<a class="sm-panel-close" href="/c/C0GEN" title="Close thread">×</a>`);
+    expect(html).toContain(`<a class="sm-panel-back" href="/c/C0GEN">← #general</a>`);
+    // The open thread's parent is highlighted in the channel column.
+    expect(html).toContain("sm-msg-open");
+    // Parent shown twice: once in the channel column, once in the panel.
+    expect(html.match(/please deploy/g)?.length).toBe(2);
+  });
+
+  test("screenshot thread page stays thread-only", () => {
+    const { store, channel, human } = workspace();
+    const html = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { screenshot: true },
+    );
+    expect(html).not.toContain(`<nav class="sm-side">`);
+    expect(html).not.toContain(`<aside class="sm-panel">`);
+    expect(html).not.toContain(`class="sm-msg sm-msg-open"`);
+    expect(html).toContain(`<div class="sm-shot">`);
+  });
+
+  test("channel and thread headers link back to the workspace", () => {
+    const { store, channel, human } = workspace();
+    const channelHtml = renderPage(store, { kind: "channel", channel: channel.id });
+    expect(channelHtml).toContain(`<a class="sm-back" href="/">← Workspace</a>`);
+    const threadHtml = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
+    expect(threadHtml).toContain(`<a class="sm-back" href="/">← Workspace</a>`);
+    const refreshed = renderPage(
+      store,
+      { kind: "channel", channel: channel.id },
+      { refreshSec: 3 },
+    );
+    expect(refreshed).toContain(`<a class="sm-back" href="/?refresh=3">← Workspace</a>`);
+    // Screenshot captures stay free of navigation chrome.
+    const shot = renderPage(store, { kind: "channel", channel: channel.id }, { screenshot: true });
+    expect(shot).not.toContain(`<a class="sm-back"`);
   });
 
   test("screenshot mode drops the sidebar and keeps links prefixed", () => {

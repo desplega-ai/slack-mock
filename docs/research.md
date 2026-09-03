@@ -9,7 +9,8 @@ throwaway servers, and Slack's documentation. Detail per topic:
 |---|---|
 | `research/01-outbound-web-api.md` | every Web API call agent-swarm makes, args, response fields read, error codes handled |
 | `research/02-inbound-events.md` | every Bolt listener, payload fields read, filters, the eight end-to-end flows, dedup |
-| `research/03-library-internals.md` | how Bolt / socket-mode / web-api behave on the wire (45 claims with file:line evidence, adversarially verified) |
+| `research/03-library-internals.md` | how Bolt / socket-mode / web-api behave on the wire (51 claims with file:line evidence) |
+| `research/03-verification.md` | two adversarial reviewers per claim: 94 verdicts, 12 partial corrections, none contradicting the mock |
 | `research/04-payload-shapes.md` | exact event, command, interactive and response shapes from `@slack/types` |
 | `research/05-protocol-and-prior-art.md` | official Socket Mode / Events API contract and existing mock servers |
 | `research/06-agent-swarm-e2e.md` | how to boot agent-swarm against a mock, env, test conventions, prior test doubles |

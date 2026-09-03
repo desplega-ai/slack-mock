@@ -47,26 +47,44 @@ const AVATAR_COLORS = [
 
 const CSS = `
 *{box-sizing:border-box}
-html,body{margin:0;padding:0}
+html,body{margin:0;padding:0;height:100%}
 body{font-family:Lato,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.46668;color:#1d1c1d;background:#fff;-webkit-font-smoothing:antialiased}
 a{color:#1264a3;text-decoration:none}
 a:hover{text-decoration:underline}
-.sm-app{display:flex;min-height:100vh}
-.sm-side{width:230px;flex:none;background:#3f0e40;color:#d9d0d9;padding:16px 0}
+.sm-app{display:flex;height:100vh;overflow:hidden}
+.sm-side{width:230px;flex:none;background:#3f0e40;color:#d9d0d9;padding:16px 0;overflow-y:auto}
 .sm-side-title{color:#fff;font-weight:900;font-size:17px;padding:0 16px 12px;border-bottom:1px solid #522653;margin-bottom:10px}
 .sm-side-team{display:block;font-weight:400;font-size:12px;color:#bda9bd}
 .sm-side-h{font-size:13px;color:#bda9bd;padding:10px 16px 4px}
 .sm-side a{display:block;color:#d9d0d9;padding:3px 16px;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sm-side a:hover{background:#350d36;text-decoration:none}
 .sm-side a.sm-active{background:#1164a3;color:#fff}
-.sm-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.sm-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .sm-shot{width:760px;padding:16px;background:#fff}
-.sm-top{border-bottom:1px solid #e8e8e8;padding:12px 20px;display:flex;align-items:baseline;gap:12px}
+.sm-top{border-bottom:1px solid #e8e8e8;padding:12px 20px;display:flex;align-items:baseline;gap:12px;flex:none}
 .sm-top h1{font-size:18px;font-weight:900;margin:0}
 .sm-top .sm-sub{font-size:13px;color:#616061;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sm-back{font-size:13px;font-weight:700;color:#616061;flex:none}
+.sm-back:hover{color:#1264a3}
 .sm-page{padding:12px 20px 32px}
+.sm-main .sm-page{flex:1;overflow-y:auto}
 .sm-shot .sm-page{padding:0}
 .sm-shot .sm-top{padding:0 0 10px;margin-bottom:8px}
+
+.sm-panel{width:420px;flex:none;display:flex;flex-direction:column;border-left:1px solid #e8e8e8;background:#fff;overflow:hidden}
+.sm-panel-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid #e8e8e8;flex:none}
+.sm-panel-title{font-size:18px;font-weight:900;margin:0;line-height:22px}
+.sm-panel-sub{font-size:13px;color:#616061}
+.sm-panel-close{font-size:20px;line-height:22px;color:#616061;padding:0 6px;border-radius:4px;flex:none}
+.sm-panel-close:hover{background:#f0f0f0;color:#1d1c1d;text-decoration:none}
+.sm-panel-back{display:none;padding:8px 16px;font-size:13px;font-weight:700;border-bottom:1px solid #e8e8e8;flex:none}
+.sm-panel-body{flex:1;overflow-y:auto;padding:12px 16px 32px}
+@media (max-width:900px){
+  .sm-side{display:none}
+  .sm-app-thread .sm-main{display:none}
+  .sm-panel{width:100%;border-left:0}
+  .sm-panel-back{display:block}
+}
 
 .sm-daydiv{display:flex;align-items:center;gap:10px;margin:14px 0 8px}
 .sm-daydiv:before,.sm-daydiv:after{content:"";flex:1;height:1px;background:#e8e8e8}
@@ -76,6 +94,7 @@ a:hover{text-decoration:underline}
 .sm-msg:hover{background:#f8f8f8}
 .sm-msg-eph{background:#fffbe6}
 .sm-msg-eph:hover{background:#fff7d1}
+.sm-msg-open,.sm-msg-open:hover{background:#fff8e2;box-shadow:inset 3px 0 0 #ecb22e}
 .sm-avatar{width:36px;height:36px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;overflow:hidden}
 .sm-avatar img{width:36px;height:36px;object-fit:cover}
 .sm-avatar-emoji{font-size:20px;background:#f0f0f0}
@@ -331,6 +350,8 @@ interface MessageFlags {
   threadLink?: boolean;
   /** Date dividers between days (channel view only, like Slack). */
   dividers?: boolean;
+  /** ts of the message whose thread is open in the side panel. */
+  openTs?: string;
 }
 
 function renderMessage(
@@ -364,7 +385,8 @@ function renderMessage(
     m.streaming_state === "in_progress"
       ? `<span class="sm-stream" title="streaming">•••</span>`
       : "";
-  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
+  const open = flags.openTs && flags.openTs === m.ts ? " sm-msg-open" : "";
+  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
 }
 
 function renderMessageList(
@@ -409,6 +431,7 @@ function shell(
   header: string,
   main: string,
   active?: string,
+  panel?: string,
 ): string {
   const refresh =
     opts.refreshSec && !opts.screenshot
@@ -418,11 +441,13 @@ function shell(
   if (opts.screenshot) {
     return `${head}<body><div class="sm-shot">${header}<div class="sm-page">${main}</div></div></body></html>`;
   }
-  return `${head}<body><div class="sm-app">${sidebar(store, opts, active)}<div class="sm-main">${header}<div class="sm-page">${main}</div></div></div></body></html>`;
+  const app = `sm-app${panel ? " sm-app-thread" : ""}`;
+  return `${head}<body><div class="${app}">${sidebar(store, opts, active)}<div class="sm-main">${header}<div class="sm-page">${main}</div></div>${panel ?? ""}</div></body></html>`;
 }
 
-function topbar(title: string, sub: string): string {
-  return `<div class="sm-top"><h1>${title}</h1>${sub ? `<div class="sm-sub">${sub}</div>` : ""}</div>`;
+function topbar(title: string, sub: string, back?: string): string {
+  const backLink = back ? `<a class="sm-back" href="${back}">← Workspace</a>` : "";
+  return `<div class="sm-top">${backLink}<h1>${title}</h1>${sub ? `<div class="sm-sub">${sub}</div>` : ""}</div>`;
 }
 
 // -------------------------------------------------------------------- views
@@ -474,29 +499,48 @@ ${
   );
 }
 
-function channelView(store: Store, opts: RenderOptions, channelId: string): string {
-  const channel = store.channels.get(channelId);
-  const ctx = ctxOf(store);
-  if (!channel) return notFound(store, opts, "Channel not found");
-
+/** Top-level messages plus this channel's ephemerals, in ts order. */
+function channelMessages(store: Store, channel: SlackChannel) {
   const history = store.history(channel.id, { limit: 1000 }).items;
   const ephemerals = store.ephemerals
     .filter((e) => e.channel === channel.id)
     .map((e) => ({ ...e, _ephemeral: true }));
-  const messages = [...history, ...ephemerals].sort((a, b) => Number(a.ts) - Number(b.ts));
+  return [...history, ...ephemerals].sort((a, b) => Number(a.ts) - Number(b.ts));
+}
 
+function channelColumn(
+  store: Store,
+  ctx: RenderContext,
+  opts: RenderOptions,
+  channel: SlackChannel,
+  openTs?: string,
+): string {
+  const messages = channelMessages(store, channel);
+  if (!messages.length) return `<div class="sm-empty">No messages yet</div>`;
+  return renderMessageList(store, ctx, messages, opts, {
+    threadLink: true,
+    dividers: true,
+    openTs,
+  });
+}
+
+function channelHeader(store: Store, opts: RenderOptions, channel: SlackChannel): string {
   const sub = [channel.topic.value, channel.purpose.value].filter(Boolean).join(" · ");
-  const main = messages.length
-    ? renderMessageList(store, ctx, messages, opts, { threadLink: true, dividers: true })
-    : `<div class="sm-empty">No messages yet</div>`;
+  const back = opts.screenshot ? undefined : `/${query(opts)}`;
+  return topbar(escapeHtml(channelLabel(store, channel)), escapeHtml(sub), back);
+}
 
+function channelView(store: Store, opts: RenderOptions, channelId: string): string {
+  const channel = store.channels.get(channelId);
+  const ctx = ctxOf(store);
+  if (!channel) return notFound(store, opts, "Channel not found");
   const label = channelLabel(store, channel);
   return shell(
     store,
     opts,
     `${label} · slack-mock`,
-    topbar(escapeHtml(label), escapeHtml(sub)),
-    main,
+    channelHeader(store, opts, channel),
+    channelColumn(store, ctx, opts, channel),
     channel.id,
   );
 }
@@ -544,13 +588,28 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
     ? `<div class="sm-daydiv"><span>${replies.length} ${replies.length === 1 ? "reply" : "replies"}</span></div>`
     : `<div class="sm-empty">No replies yet</div>`;
 
-  const main = `${assistantPanel(store, channel.id, ts)}${renderMessage(store, ctx, parent, opts)}${repliesBar}${renderMessageList(store, ctx, replies, opts, { dividers: false })}`;
+  const body = `${assistantPanel(store, channel.id, ts)}${renderMessage(store, ctx, parent, opts)}${repliesBar}${renderMessageList(store, ctx, replies, opts, { dividers: false })}`;
 
-  const header = topbar(
-    `Thread <span class="sm-muted">·</span> <a href="${channelHref(channel.id, opts)}">${escapeHtml(label)}</a>`,
-    "",
+  // Screenshot mode stays thread-only so captures have no surrounding chrome.
+  if (opts.screenshot) {
+    const header = topbar(
+      `Thread <span class="sm-muted">·</span> <a href="${channelHref(channel.id, opts)}">${escapeHtml(label)}</a>`,
+      "",
+    );
+    return shell(store, opts, `Thread · ${label}`, header, body, channel.id);
+  }
+
+  const close = channelHref(channel.id, opts);
+  const panel = `<aside class="sm-panel"><div class="sm-panel-top"><div><h2 class="sm-panel-title">Thread</h2><div class="sm-panel-sub">${escapeHtml(label)}</div></div><a class="sm-panel-close" href="${close}" title="Close thread">×</a></div><a class="sm-panel-back" href="${close}">← ${escapeHtml(label)}</a><div class="sm-panel-body">${body}</div></aside>`;
+  return shell(
+    store,
+    opts,
+    `Thread · ${label}`,
+    channelHeader(store, opts, channel),
+    channelColumn(store, ctx, opts, channel, ts),
+    channel.id,
+    panel,
   );
-  return shell(store, opts, `Thread · ${label}`, header, main, channel.id);
 }
 
 function notFound(store: Store, opts: RenderOptions, message: string): string {
