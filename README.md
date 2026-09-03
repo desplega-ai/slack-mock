@@ -90,7 +90,7 @@ process (see `docs/design.md`).
 
 ```bash
 bun test                      # unit and integration tests (real Bolt client)
-bun run test:e2e              # boots ../agent-swarm against the mock (AGENT_SWARM_REPO to override)
+bun run test:e2e              # boots ../agent-swarm against the mock (AGENT_SWARM_REPO to override; needs agent-swarm PR #1310)
 bun run typecheck
 bun run lint
 ```

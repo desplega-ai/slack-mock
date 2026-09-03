@@ -49,7 +49,7 @@ written by parallel research agents and verified against the installed
 - **Pluggability by base URL, not by network tricks.** `@slack/web-api` has
   no env override and disables proxies. The bot passes
   `clientOptions.slackApiUrl`; agent-swarm reads it from `SLACK_API_URL`
-  (three-line patch in `src/slack/app.ts`).
+  (three-line patch in `src/slack/app.ts`, agent-swarm PR #1310).
 - **HTTP 200 with `ok:false` for business errors.** Bolt's per-listener
   clients retry non-200 up to 100 times. Real 429/5xx only via `injectFault`.
 - **Echo bot messages.** Slack delivers the bot's own messages as events;
