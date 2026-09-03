@@ -88,7 +88,11 @@ a:hover{text-decoration:underline}
 .sm-panel-close:hover,.sm-panel-expand:hover{background:#f0f0f0;color:#1d1c1d;text-decoration:none}
 .sm-panel-back{display:none;padding:8px 16px;font-size:13px;font-weight:700;border-bottom:1px solid #e8e8e8;flex:none}
 .sm-panel-body{flex:1;overflow-y:auto;padding:12px 16px 32px}
-.sm-composer{flex:none;border-top:1px solid #e8e8e8;padding:10px 20px 12px;background:#fff}
+.sm-resize{width:6px;flex:none;cursor:col-resize;background:#f2f2f2;border-left:1px solid #e8e8e8}
+.sm-resize:hover,.sm-resize.sm-dragging{background:#1264a3;border-left-color:#1264a3}
+.sm-icon-btn{display:inline-block;font-size:16px;line-height:22px;color:#616061;padding:0 6px;border-radius:4px;cursor:pointer}
+.sm-icon-btn:hover{background:#f0f0f0;color:#1d1c1d;text-decoration:none}
+.sm-composer{position:relative;flex:none;border-top:1px solid #e8e8e8;padding:10px 20px 12px;background:#fff}
 .sm-panel .sm-composer{padding:10px 16px 12px}
 .sm-composer-box{border:1px solid #bbb;border-radius:8px;padding:8px 10px;background:#fff}
 .sm-composer-box:focus-within{border-color:#1264a3;box-shadow:0 0 0 1px #1264a3}
@@ -99,6 +103,18 @@ a:hover{text-decoration:underline}
 .sm-composer-send{flex:none;margin-left:auto;border:0;border-radius:4px;background:#007a5a;color:#fff;font-family:inherit;font-weight:700;font-size:13px;padding:6px 14px;cursor:pointer}
 .sm-composer-send:hover{background:#148567;color:#fff}
 .sm-composer-hint{font-size:11px;color:#616061;margin-top:4px}
+.sm-mentions{display:none;position:absolute;left:20px;right:20px;bottom:100%;margin-bottom:6px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.16);z-index:5}
+.sm-panel .sm-mentions{left:16px;right:16px}
+.sm-mention{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:14px;cursor:pointer;color:#1d1c1d}
+.sm-mention-on{background:#1264a3;color:#fff}
+.sm-mention-on .sm-mention-real{color:#dbe9f5}
+.sm-mention-av{width:20px;height:20px;border-radius:3px;flex:none;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
+.sm-mention-name{font-weight:700}
+.sm-mention-real{color:#616061;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.sm-side a,.sm-btn,.sm-select,.sm-reaction,.sm-file-card,.sm-prompt,.sm-replies,.sm-back,.sm-panel-close,.sm-panel-expand,.sm-composer-send,.sm-composer-user,.sm-top-actions a{cursor:pointer}
+.sm-composer-text{cursor:text}
+.sm-badge,.sm-time,.sm-daydiv,.sm-pill,.sm-emoji-name,.sm-avatar,.sm-name,.sm-composer-hint,.sm-unsupported,.sm-tag,.sm-card{cursor:default}
 .sm-top-actions{margin-left:auto;display:flex;gap:12px;align-items:baseline;flex:none}
 .sm-top-actions a{font-size:13px;font-weight:700;color:#616061}
 .sm-top-actions a:hover{color:#1264a3}
@@ -107,7 +123,7 @@ a:hover{text-decoration:underline}
   .sm-app-thread .sm-main{display:none}
   .sm-panel{width:100%;min-width:0;border-left:0}
   .sm-panel-back{display:block}
-  .sm-panel-expand{display:none}
+  .sm-panel-expand,.sm-resize{display:none}
 }
 
 .sm-daydiv{display:flex;align-items:center;gap:10px;margin:14px 0 8px}
@@ -506,7 +522,10 @@ function shell(store: Store, opts: RenderOptions, parts: ShellParts): string {
     return `${head}<body><div class="sm-shot">${parts.header}<div class="sm-page">${parts.main}</div></div></body></html>`;
   }
   const app = `sm-app${parts.panel ? " sm-app-thread" : ""}`;
-  return `${head}<body${style}><div class="${app}">${sidebar(store, opts, parts.active)}<div class="sm-main">${parts.header}<div class="sm-page">${parts.main}</div>${parts.footer ?? ""}</div>${parts.panel ?? ""}</div>${parts.script ?? ""}</body></html>`;
+  const handle = parts.panel
+    ? `<div class="sm-resize" title="Drag to resize, double-click to reset"></div>`
+    : "";
+  return `${head}<body${style}><div class="${app}">${sidebar(store, opts, parts.active)}<div class="sm-main">${parts.header}<div class="sm-page sm-scroll">${parts.main}</div>${parts.footer ?? ""}</div>${handle}${parts.panel ?? ""}</div>${parts.script ?? ""}</body></html>`;
 }
 
 interface BackLink {
@@ -624,17 +643,80 @@ function composer(
     .join("");
   const placeholder = threadTs ? "Reply in thread" : `Message ${channelLabel(store, channel)}`;
   const thread = threadTs ? ` data-thread="${escapeHtml(threadTs)}"` : "";
-  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}><div class="sm-composer-box"><textarea class="sm-composer-text" rows="2" placeholder="${escapeHtml(placeholder)}"></textarea><div class="sm-composer-row"><select class="sm-composer-user" aria-label="Post as">${options}</select><button type="button" class="sm-composer-send">Send</button></div></div><div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention</div></div>`;
+  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}><div class="sm-mentions"></div><div class="sm-composer-box"><textarea class="sm-composer-text" rows="2" placeholder="${escapeHtml(placeholder)}"></textarea><div class="sm-composer-row"><select class="sm-composer-user" aria-label="Post as">${options}</select><button type="button" class="sm-composer-send">Send</button></div></div><div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention</div></div>`;
 }
 
-/** One inline script for both composers plus the Escape shortcut. */
-function threadScript(closeUrl?: string): string {
+/** Mention targets for the composer autocomplete: every user, bots included. */
+function mentionData(store: Store): string {
+  const users = [...store.users.values()]
+    .filter((u) => !u.deleted)
+    .map((u) => ({
+      name: u.name,
+      real: u.real_name || u.name,
+      initials: initials(u.real_name || u.name),
+      color: AVATAR_COLORS[hashIndex(u.id, AVATAR_COLORS.length)],
+    }));
+  const json = JSON.stringify(users).replace(/</g, "\\u003c");
+  return `<script type="application/json" id="sm-users">${json}</script>`;
+}
+
+/**
+ * The whole client side: scroll to the newest message, drag the panel edge,
+ * send from the composers, mention autocomplete and Escape to close a thread.
+ */
+function uiScript(store: Store, opts: RenderOptions, closeUrl?: string): string {
   const esc = closeUrl
     ? `document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!/^(TEXTAREA|INPUT|SELECT)$/.test(document.activeElement&&document.activeElement.tagName||""))location.href=${JSON.stringify(closeUrl)}});`
     : "";
-  const send = `function smSend(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim();if(!text)return;var body={channel:box.dataset.channel,user:box.querySelector(".sm-composer-user").value,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}).then(function(){location.reload()}).catch(function(){t.disabled=false});}
-document.querySelectorAll(".sm-composer").forEach(function(box){box.querySelector(".sm-composer-send").addEventListener("click",function(){smSend(box)});box.querySelector(".sm-composer-text").addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();smSend(box)}})});`;
-  return `<script>${send}${esc}</script>`;
+  const body = `(function(){
+var W="sm-panel-w",DEF=${JSON.stringify(panelWidth(opts))},FIXED=${opts.panelWidth ? "true" : "false"};
+function scroll(){document.querySelectorAll(".sm-scroll").forEach(function(el){el.scrollTop=el.scrollHeight})}
+scroll();addEventListener("load",scroll);
+var handle=document.querySelector(".sm-resize");
+if(handle){
+ var saved=null;try{saved=localStorage.getItem(W)}catch(e){}
+ if(!FIXED&&saved)document.body.style.setProperty("--sm-panel-w",saved);
+ var dragging=false;
+ handle.addEventListener("mousedown",function(e){dragging=true;handle.classList.add("sm-dragging");e.preventDefault()});
+ document.addEventListener("mousemove",function(e){if(!dragging)return;var w=Math.round(Math.min(Math.max(innerWidth-e.clientX,360),Math.max(innerWidth-320,360)));document.body.style.setProperty("--sm-panel-w",w+"px")});
+ document.addEventListener("mouseup",function(){if(!dragging)return;dragging=false;handle.classList.remove("sm-dragging");try{localStorage.setItem(W,document.body.style.getPropertyValue("--sm-panel-w"))}catch(e){}});
+ handle.addEventListener("dblclick",function(){try{localStorage.removeItem(W)}catch(e){}document.body.style.setProperty("--sm-panel-w",DEF)});
+}
+var raw=document.getElementById("sm-users");
+var PEOPLE=(raw?JSON.parse(raw.textContent||"[]"):[]).concat([{name:"here",real:"Notify everyone online",initials:"@",color:"#616061"},{name:"channel",real:"Notify everyone in the channel",initials:"@",color:"#616061"}]);
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;"})}
+function send(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim();if(!text)return;var body={channel:box.dataset.channel,user:box.querySelector(".sm-composer-user").value,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}).then(function(){location.reload()}).catch(function(){t.disabled=false})}
+document.querySelectorAll(".sm-composer").forEach(function(box){
+ var ta=box.querySelector(".sm-composer-text"),menu=box.querySelector(".sm-mentions"),items=[],active=0;
+ function close(){items=[];menu.style.display="none"}
+ function prefix(){var m=/(?:^|\\s)@(\\w*)$/.exec(ta.value.slice(0,ta.selectionStart));return m?m[1]:null}
+ function paint(){menu.querySelectorAll(".sm-mention").forEach(function(el,i){el.className="sm-mention"+(i===active?" sm-mention-on":"")})}
+ function show(){
+  var q=prefix();if(q===null)return close();
+  var low=q.toLowerCase();
+  var list=PEOPLE.filter(function(u){return !low||u.name.toLowerCase().indexOf(low)===0||u.real.toLowerCase().indexOf(low)===0}).slice(0,8);
+  if(!list.length)return close();
+  items=list;active=0;
+  menu.innerHTML=list.map(function(u,i){return '<div class="sm-mention'+(i?"":" sm-mention-on")+'" data-i="'+i+'"><span class="sm-mention-av" style="background:'+esc(u.color)+'">'+esc(u.initials)+'</span><span class="sm-mention-name">@'+esc(u.name)+'</span><span class="sm-mention-real">'+esc(u.real)+'</span></div>'}).join("");
+  menu.style.display="block";
+ }
+ function pick(i){var u=items[i];if(!u)return;var pos=ta.selectionStart,before=ta.value.slice(0,pos).replace(/@\\w*$/,"@"+u.name+" "),after=ta.value.slice(pos);ta.value=before+after;ta.selectionStart=ta.selectionEnd=before.length;close();ta.focus()}
+ ta.addEventListener("input",show);
+ ta.addEventListener("blur",function(){setTimeout(close,150)});
+ menu.addEventListener("mousedown",function(e){var el=e.target.closest(".sm-mention");if(el){e.preventDefault();pick(Number(el.dataset.i))}});
+ ta.addEventListener("keydown",function(e){
+  if(items.length){
+   if(e.key==="ArrowDown"){e.preventDefault();active=(active+1)%items.length;paint();return}
+   if(e.key==="ArrowUp"){e.preventDefault();active=(active-1+items.length)%items.length;paint();return}
+   if(e.key==="Enter"||e.key==="Tab"){e.preventDefault();pick(active);return}
+   if(e.key==="Escape"){e.preventDefault();e.stopPropagation();close();return}
+  }
+  if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(box)}
+ });
+ box.querySelector(".sm-composer-send").addEventListener("click",function(){send(box)});
+});
+})();`;
+  return `${mentionData(store)}<script>${body}${esc}</script>`;
 }
 
 function channelView(store: Store, opts: RenderOptions, channelId: string): string {
@@ -648,7 +730,7 @@ function channelView(store: Store, opts: RenderOptions, channelId: string): stri
     main: channelColumn(store, ctx, opts, channel),
     active: channel.id,
     footer: composer(store, opts, channel),
-    script: opts.screenshot ? "" : threadScript(),
+    script: opts.screenshot ? "" : uiScript(store, opts),
   });
 }
 
@@ -719,7 +801,7 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
       `Thread <span class="sm-muted">·</span> ${escapeHtml(label)}`,
       "",
       { href: close, label: `← ${label}` },
-      `<a href="${threadHref(channel.id, ts, opts, { full: false })}" title="Show the channel beside the thread">Collapse to panel</a>`,
+      `<a class="sm-icon-btn" href="${threadHref(channel.id, ts, opts, { full: false })}" title="Collapse to panel" aria-label="Collapse to panel">⤡</a>`,
     );
     return shell(store, opts, {
       title,
@@ -727,12 +809,12 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
       main: body,
       active: channel.id,
       footer: composer(store, opts, channel, ts),
-      script: threadScript(close),
+      script: uiScript(store, opts, close),
     });
   }
 
   const expand = threadHref(channel.id, ts, opts, { full: true });
-  const panel = `<aside class="sm-panel"><div class="sm-panel-top"><div class="sm-panel-heading"><h2 class="sm-panel-title">Thread</h2><div class="sm-panel-sub">${escapeHtml(label)}</div></div><a class="sm-panel-expand" href="${expand}" title="Expand thread">⤢</a><a class="sm-panel-close" href="${close}" title="Close thread">×</a></div><a class="sm-panel-back" href="${close}">← ${escapeHtml(label)}</a><div class="sm-panel-body">${body}</div>${composer(store, opts, channel, ts)}</aside>`;
+  const panel = `<aside class="sm-panel"><div class="sm-panel-top"><div class="sm-panel-heading"><h2 class="sm-panel-title">Thread</h2><div class="sm-panel-sub">${escapeHtml(label)}</div></div><a class="sm-panel-expand" href="${expand}" title="Expand thread">⤢</a><a class="sm-panel-close" href="${close}" title="Close thread">×</a></div><a class="sm-panel-back" href="${close}">← ${escapeHtml(label)}</a><div class="sm-panel-body sm-scroll">${body}</div>${composer(store, opts, channel, ts)}</aside>`;
   return shell(store, opts, {
     title,
     header: channelHeader(store, opts, channel),
@@ -740,7 +822,7 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
     active: channel.id,
     panel,
     footer: composer(store, opts, channel),
-    script: threadScript(close),
+    script: uiScript(store, opts, close),
   });
 }
 

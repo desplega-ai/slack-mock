@@ -595,6 +595,71 @@ describe("renderPage", () => {
     expect(fullHtml).toContain(`data-thread="${human.ts}"`);
   });
 
+  test("scroll containers are pinned to the newest message", () => {
+    const { store, channel, human } = workspace();
+    const channelHtml = renderPage(store, { kind: "channel", channel: channel.id });
+    expect(channelHtml).toContain(`<div class="sm-page sm-scroll">`);
+    expect(channelHtml).toContain("el.scrollTop=el.scrollHeight");
+    const threadHtml = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
+    expect(threadHtml).toContain(`<div class="sm-panel-body sm-scroll">`);
+    expect(threadHtml).toContain("scrollHeight");
+    const shot = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { screenshot: true },
+    );
+    expect(shot).not.toContain("scrollHeight");
+  });
+
+  test("the panel has a drag handle, the full and screenshot views do not", () => {
+    const { store, channel, human } = workspace();
+    const view = { kind: "thread", channel: channel.id, ts: human.ts } as const;
+    const panel = renderPage(store, view);
+    expect(panel).toContain(
+      `<div class="sm-resize" title="Drag to resize, double-click to reset">`,
+    );
+    expect(panel).toContain("localStorage");
+    expect(panel).toContain(`"sm-panel-w"`);
+    expect(renderPage(store, view, { threadView: "full" })).not.toContain(`<div class="sm-resize"`);
+    expect(renderPage(store, view, { screenshot: true })).not.toContain(`<div class="sm-resize"`);
+    expect(renderPage(store, { kind: "channel", channel: channel.id })).not.toContain(
+      `<div class="sm-resize"`,
+    );
+  });
+
+  test("full view collapses through an icon button", () => {
+    const { store, channel, human } = workspace();
+    const html = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { threadView: "full" },
+    );
+    expect(html).toContain(`aria-label="Collapse to panel"`);
+    expect(html).toContain("⤡");
+    expect(html).toContain(`class="sm-icon-btn"`);
+  });
+
+  test("mention data lists every user, bots included", () => {
+    const { store, channel } = workspace();
+    const html = renderPage(store, { kind: "channel", channel: channel.id });
+    const tag = /<script type="application\/json" id="sm-users">(.*?)<\/script>/s.exec(html);
+    expect(tag).not.toBeNull();
+    const people = JSON.parse(tag?.[1] ?? "[]") as Array<{ name: string; real: string }>;
+    expect(people.map((p) => p.name).sort()).toEqual(["alice", "swarm-bot"]);
+    expect(people.find((p) => p.name === "alice")?.real).toBe("Alice Example");
+    expect(html).toContain("sm-mentions");
+  });
+
+  test("interactive elements declare their cursor", () => {
+    const { store, channel, human } = workspace();
+    const html = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
+    expect(html).toContain("cursor:col-resize");
+    expect(html).toMatch(/\.sm-composer-send\{[^}]*cursor:pointer/);
+    expect(html).toMatch(/\.sm-composer-text\{cursor:text\}/);
+    expect(html).toMatch(/cursor:pointer\}/);
+    expect(html).toMatch(/\.sm-badge,[^{]*\{cursor:default\}/);
+  });
+
   test("screenshot pages have no composer", () => {
     const { store, channel, human } = workspace();
     const shotChannel = renderPage(
