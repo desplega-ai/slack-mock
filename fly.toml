@@ -1,0 +1,38 @@
+# Hosted demo: https://demo.slack-mock.dev
+app = "slack-mock-demo"
+primary_region = "mad"
+
+[build]
+
+[env]
+  PORT = "8080"
+  HOST = "0.0.0.0"
+  DATA_FILE = "/data/slack.jsonl"
+  PUBLIC_URL = "https://demo.slack-mock.dev"
+  RESET_EVERY_HOURS = "24"
+
+[[mounts]]
+  source = "data"
+  destination = "/data"
+  initial_size = "1gb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/mock/state"
+
+[[restart]]
+  policy = "always"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

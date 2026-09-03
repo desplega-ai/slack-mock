@@ -104,6 +104,21 @@ bun run lint
 bun run build                 # dist/ (JS for Bun + .d.ts). CI publishes to npm when the version in package.json changes on main
 ```
 
+## Hosted demo
+
+https://demo.slack-mock.dev runs `scripts/demo-server.ts`: the mock plus a small
+demo bot (`scripts/demo-bot.ts`) in one container, deployed to Fly.io from
+`main` by `.github/workflows/deploy.yml` (`fly.toml`, `Dockerfile`). State
+lives in a JSONL journal on a volume and resets daily. Run it yourself:
+
+```bash
+docker build -t slack-mock-demo . && docker run -p 8080:8080 -e ADMIN_AUTH=demo:secret slack-mock-demo
+```
+
+`PUBLIC_URL`, `ADMIN_AUTH` (basic auth for the UI and `/mock/*`), `DATA_FILE`,
+`RESET_EVERY_HOURS` and `MANIFEST` configure it. The same knobs exist on the
+CLI (`--public-url`, `--auth`) and as `SlackMockOptions` (`publicUrl`, `adminAuth`).
+
 ## Docs
 
 - `skills/slack-mock/SKILL.md`: how to use the package from another repo (agents and humans).

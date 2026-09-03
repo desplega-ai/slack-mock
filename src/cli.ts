@@ -6,7 +6,8 @@ import { SlackMock } from "./server.ts";
 const USAGE = `slack-mock: a mock Slack server (Web API + Socket Mode) for testing bots
 
 Usage:
-  slack-mock serve [--port 4040] [--host 127.0.0.1] [--data ./data/slack.jsonl] [--manifest app.json] [--no-seed] [--quiet] [--panel 50]
+  slack-mock serve [--port 4040] [--host 127.0.0.1] [--data ./data/slack.jsonl] [--manifest app.json]
+                   [--no-seed] [--quiet] [--panel 50] [--auth user:pass] [--public-url https://mock.example.com]
   slack-mock screenshot <url> --out shot.png [--width 800] [--height 1000]
 
 serve prints the env vars to give your bot (SLACK_BOT_TOKEN, SLACK_APP_TOKEN, SLACK_API_URL)
@@ -28,10 +29,14 @@ async function main(argv: string[]): Promise<void> {
         "no-seed": { type: "boolean", default: false },
         quiet: { type: "boolean", default: false },
         panel: { type: "string" },
+        auth: { type: "string" },
+        "public-url": { type: "string" },
       },
     });
     const mock = await SlackMock.start({
       panelWidth: values.panel,
+      adminAuth: values.auth,
+      publicUrl: values["public-url"],
       port: Number(values.port),
       host: values.host,
       dataFile: values.data,

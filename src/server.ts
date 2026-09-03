@@ -66,6 +66,15 @@ export interface SlackMockOptions extends StoreOptions {
   eventDelayMs?: number;
   /** Default width of the thread side panel in the HTML UI, e.g. "50%" or "640px". `?panel=` overrides per request. */
   panelWidth?: string;
+  /**
+   * Public base URL (e.g. "https://demo.slack-mock.dev") used in every URL the mock hands out:
+   * Socket Mode link, file download and upload URLs, response_urls, permalinks. When unset, URLs
+   * are derived from each request's Host header (honouring X-Forwarded-Proto), falling back to the
+   * local address.
+   */
+  publicUrl?: string;
+  /** "user:password" HTTP basic auth for the HTML UI and the /mock admin API (the Slack API stays token-based). */
+  adminAuth?: string;
   log?: boolean | ((msg: string) => void);
 }
 
@@ -228,8 +237,45 @@ export class SlackMock {
     this.log(`listening on ${this.baseUrl}`);
   }
 
-  get baseUrl(): string {
+  /** Address of this process's listener, for in-process clients and tests. */
+  get localUrl(): string {
     return `http://${this.server.hostname}:${this.server.port}`;
+  }
+
+  /** Base URL handed to bots and browsers: `publicUrl` when configured, else the local address. */
+  get baseUrl(): string {
+    return (this.opts.publicUrl ?? this.localUrl).replace(/\/$/, "");
+  }
+
+  /** Base URL for links generated while serving `req`: publicUrl, else the request's own host. */
+  private publicBase(req: Request): string {
+    const host = req.headers.get("host");
+    if (!host) return this.baseUrl;
+    const proto =
+      req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+      new URL(req.url).protocol.replace(":", "");
+    const hostname = host.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+    const loopback =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "0.0.0.0";
+    // Clients on the same box (tests, the demo bot in the container) must get URLs they can reach,
+    // even when a public URL is configured for everybody else.
+    if (loopback) return `${proto}://${host}`;
+    return this.opts.publicUrl ? this.baseUrl : `${proto}://${host}`;
+  }
+
+  private authorizedAdmin(req: Request): boolean {
+    const expected = this.opts.adminAuth;
+    if (!expected) return true;
+    const header = req.headers.get("authorization") ?? "";
+    if (!header.toLowerCase().startsWith("basic ")) return false;
+    try {
+      return Buffer.from(header.slice(6).trim(), "base64").toString("utf8") === expected;
+    } catch {
+      return false;
+    }
   }
 
   get apiUrl(): string {
@@ -269,6 +315,14 @@ export class SlackMock {
     const path = url.pathname;
     this.lastRequestAt = Date.now();
     try {
+      const isAdminSurface =
+        path.startsWith("/mock/") || path === "/" || path === "" || path.startsWith("/c/");
+      if (isAdminSurface && !this.authorizedAdmin(req)) {
+        return new Response("authentication required", {
+          status: 401,
+          headers: { "www-authenticate": 'Basic realm="slack-mock"' },
+        });
+      }
       if (path.startsWith("/link/") || path === "/link") {
         const ticket = url.searchParams.get("ticket") ?? "";
         if (!this.hub.tickets.has(ticket)) return new Response("invalid ticket", { status: 403 });
@@ -276,7 +330,8 @@ export class SlackMock {
         if (server.upgrade(req, { data: { id: slackId("S", 6), ticket } })) return undefined;
         return new Response("upgrade failed", { status: 400 });
       }
-      if (path.startsWith("/api/")) return await this.handleApi(req, path.slice(5));
+      if (path.startsWith("/api/"))
+        return await this.handleApi(req, path.slice(5), this.publicBase(req));
       if (path.startsWith("/upload/v1/"))
         return await this.handleUpload(req, path.slice("/upload/v1/".length));
       if (path.startsWith("/files-pri/")) return this.handleDownload(req, path);
@@ -301,7 +356,7 @@ export class SlackMock {
     return null;
   }
 
-  private async handleApi(req: Request, method: string): Promise<Response> {
+  private async handleApi(req: Request, method: string, baseUrl: string): Promise<Response> {
     let args: Args = {};
     try {
       args = await parseArgs(req);
@@ -359,8 +414,8 @@ export class SlackMock {
     const ctx: ApiContext = {
       store: this.store,
       hub: this.hub,
-      baseUrl: this.baseUrl,
-      wsUrl: this.baseUrl.replace(/^http/, "ws"),
+      baseUrl,
+      wsUrl: baseUrl.replace(/^http/, "ws"),
       actor,
       triggerIds: this.triggerIds,
       pendingUploads: this.pendingUploads,
@@ -380,6 +435,7 @@ export class SlackMock {
   }
 
   private async handleUpload(req: Request, fileId: string): Promise<Response> {
+    const baseUrl = this.publicBase(req);
     const pending = this.pendingUploads.get(fileId);
     if (!pending) return new Response("unknown upload", { status: 404 });
     let bytes: Uint8Array;
@@ -400,7 +456,7 @@ export class SlackMock {
       name: pending.name,
       user: pending.user,
       bytes,
-      baseUrl: this.baseUrl,
+      baseUrl,
     });
     return new Response("OK");
   }

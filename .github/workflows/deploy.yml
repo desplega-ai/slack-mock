@@ -1,0 +1,35 @@
+name: deploy
+# Deploys the hosted demo (demo.slack-mock.dev) to Fly.io on every push to main.
+# Needs the FLY_API_TOKEN secret (fly tokens create deploy); skips quietly without it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+jobs:
+  fly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        env:
+          FLY_TOKEN_SET: ${{ secrets.FLY_API_TOKEN != '' }}
+        run: |
+          if [ "$FLY_TOKEN_SET" != "true" ]; then
+            echo "::warning::FLY_API_TOKEN secret is not set; skipping deploy"
+          fi
+          echo "deploy=$FLY_TOKEN_SET" >> "$GITHUB_OUTPUT"
+      - if: steps.check.outputs.deploy == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - if: steps.check.outputs.deploy == 'true'
+        run: bun install --frozen-lockfile && bun run typecheck && bun test
+      - if: steps.check.outputs.deploy == 'true'
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      - if: steps.check.outputs.deploy == 'true'
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
