@@ -108,6 +108,17 @@ use (`/mock/messages`, `/mock/commands`, `/mock/actions`, `/mock/views/submit`,
   `/agent-swarm-status` answers ephemerally, and the thread is screenshotted
   to `test/artifacts/agent-swarm-thread.png`.
 
+## Hosted demo
+
+`scripts/demo-server.ts` runs the mock plus `scripts/demo-bot.ts` in one Bun
+process. `Dockerfile` + `fly.toml` deploy it to Fly.io (app `slack-mock-demo`,
+desplega org, Paris, one always-on machine, 1 GB volume at `/data` holding the
+JSONL journal, daily reset). `.github/workflows/deploy.yml` deploys every push
+to `main` with the `FLY_API_TOKEN` secret. DNS for `demo.slack-mock.dev` is a
+CNAME in Vercel (desplega-labs team) to the app's Fly hostname. The package is
+published to npm as `@desplega.ai/slack-mock` by `release.yml` whenever the
+version in `package.json` changes on `main`.
+
 ## Not in the MVP
 
 - HTTP mode (Events API over HTTP with signed requests) instead of Socket Mode.
