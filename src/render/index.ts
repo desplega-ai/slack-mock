@@ -455,7 +455,13 @@ function renderMessage(
   const isApp = Boolean(m.bot_id);
   const blocks = Array.isArray(m.blocks) && m.blocks.length ? m.blocks : undefined;
   const body: string[] = [];
-  if (blocks) body.push(renderBlocks(blocks, ctx));
+  if (m.streaming_state !== undefined) {
+    // A streamed message (chat.startStream) keeps its Markdown body; the blocks handed to
+    // chat.stopStream are appended below it, like Slack does.
+    if (m.text)
+      body.push(`<div class="sm-text">${mrkdwnToHtml(markdownToMrkdwn(m.text), ctx)}</div>`);
+    if (blocks) body.push(renderBlocks(blocks, ctx));
+  } else if (blocks) body.push(renderBlocks(blocks, ctx));
   else if (m.text) body.push(`<div class="sm-text">${mrkdwnToHtml(m.text, ctx)}</div>`);
   if (m.edited) body.push(`<div class="sm-edited">(edited)</div>`);
   if (m.attachments?.length) body.push(renderAttachments(m.attachments, ctx));
@@ -477,6 +483,27 @@ function renderMessage(
       : "";
   const open = flags.openTs && flags.openTs === m.ts ? " sm-msg-open" : "";
   return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}" data-ts="${escapeHtml(m.ts)}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
+}
+
+/**
+ * Streamed messages carry Markdown (`markdown_text`), not mrkdwn. Convert the common
+ * constructs so the mrkdwn renderer shows them: **bold**, [label](url), headings and list
+ * bullets. Fenced code blocks pass through untouched.
+ */
+function markdownToMrkdwn(text: string): string {
+  return text
+    .split(/(```[\s\S]*?```)/)
+    .map((part, i) =>
+      i % 2 === 1
+        ? part
+        : part
+            .replace(/\*\*(.+?)\*\*/g, "*$1*")
+            .replace(/__(.+?)__/g, "*$1*")
+            .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "<$2|$1>")
+            .replace(/^#{1,6}\s+(.+)$/gm, "*$1*")
+            .replace(/^(\s*)[-*]\s+/gm, "$1• "),
+    )
+    .join("");
 }
 
 function renderMessageList(

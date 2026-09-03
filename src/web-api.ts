@@ -242,11 +242,13 @@ export const handlers: Record<string, Handler> = {
     const existing = ctx.store.message(channel.id, ts);
     if (existing.streaming_state !== "in_progress")
       throw new SlackApiError("message_not_in_streaming_state");
+    // Streaming appends are not edits: Slack shows no "(edited)" marker for them.
     const message = ctx.store.updateMessage(
       channel.id,
       ts,
       { text: existing.text + streamText(args) },
       ctx.actor.userId,
+      { markEdited: false },
     );
     return { channel: channel.id, ts: message.ts };
   },
@@ -262,7 +264,9 @@ export const handlers: Record<string, Handler> = {
       text: existing.text + streamText(args),
     };
     if (Array.isArray(args.blocks)) patch.blocks = args.blocks as unknown[];
-    const message = ctx.store.updateMessage(channel.id, ts, patch, ctx.actor.userId);
+    const message = ctx.store.updateMessage(channel.id, ts, patch, ctx.actor.userId, {
+      markEdited: false,
+    });
     return { channel: channel.id, ts, message: wireMessage(message) };
   },
 

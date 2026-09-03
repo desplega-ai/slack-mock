@@ -421,10 +421,15 @@ export class Store {
     ts: string,
     patch: Partial<SlackMessage>,
     editor: string,
+    opts: { markEdited?: boolean } = {},
   ): SlackMessage {
     const message = this.message(channelId, ts);
     const previous = structuredClone(message);
-    Object.assign(message, patch, { edited: { user: editor, ts: nextTs() } });
+    Object.assign(
+      message,
+      patch,
+      opts.markEdited === false ? {} : { edited: { user: editor, ts: nextTs() } },
+    );
     this.emit({ kind: "message.update", message, previous });
     return message;
   }
