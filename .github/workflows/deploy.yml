@@ -34,7 +34,8 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       # Same image, second app: the Agent Swarm demo workspace (swarm.slack-mock.dev).
+      # Fly deploy tokens are app-scoped, so this app has its own secret.
       - if: steps.check.outputs.deploy == 'true'
         run: flyctl deploy --remote-only -c fly.swarm.toml
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_SWARM }}
