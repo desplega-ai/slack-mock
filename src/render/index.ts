@@ -1,0 +1,575 @@
+// Server-rendered, Slack-looking HTML for the mock workspace. No client-side
+// JavaScript and no external assets, so a page can be screenshotted by headless
+// Chrome or opened directly in a browser while debugging a test.
+
+import type { Store } from "../store.ts";
+import type { SlackChannel, SlackFile, SlackMessage } from "../types.ts";
+import { renderAttachments, renderBlocks } from "./blocks.ts";
+import {
+  displayName,
+  emojiChar,
+  escapeHtml,
+  mrkdwnToHtml,
+  plainTextToHtml,
+  type RenderContext,
+} from "./mrkdwn.ts";
+
+export { escapeHtml } from "./mrkdwn.ts";
+
+export type View =
+  | { kind: "index" }
+  | { kind: "channel"; channel: string }
+  | { kind: "thread"; channel: string; ts: string };
+
+export interface RenderOptions {
+  /** Screenshot mode: no navigation chrome, fixed width, no auto-refresh. */
+  screenshot?: boolean;
+  /** Number of live Socket Mode connections (shown on the index page). */
+  connections?: number;
+  /** Auto-refresh interval in seconds (omit for none). */
+  refreshSec?: number;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const AVATAR_COLORS = [
+  "#4a154b",
+  "#1264a3",
+  "#2eb67d",
+  "#e01e5a",
+  "#e8912d",
+  "#007a5a",
+  "#7c3aed",
+  "#00a2ac",
+  "#df10a5",
+  "#3d5afe",
+];
+
+const CSS = `
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:Lato,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.46668;color:#1d1c1d;background:#fff;-webkit-font-smoothing:antialiased}
+a{color:#1264a3;text-decoration:none}
+a:hover{text-decoration:underline}
+.sm-app{display:flex;min-height:100vh}
+.sm-side{width:230px;flex:none;background:#3f0e40;color:#d9d0d9;padding:16px 0}
+.sm-side-title{color:#fff;font-weight:900;font-size:17px;padding:0 16px 12px;border-bottom:1px solid #522653;margin-bottom:10px}
+.sm-side-team{display:block;font-weight:400;font-size:12px;color:#bda9bd}
+.sm-side-h{font-size:13px;color:#bda9bd;padding:10px 16px 4px}
+.sm-side a{display:block;color:#d9d0d9;padding:3px 16px;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sm-side a:hover{background:#350d36;text-decoration:none}
+.sm-side a.sm-active{background:#1164a3;color:#fff}
+.sm-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.sm-shot{width:760px;padding:16px;background:#fff}
+.sm-top{border-bottom:1px solid #e8e8e8;padding:12px 20px;display:flex;align-items:baseline;gap:12px}
+.sm-top h1{font-size:18px;font-weight:900;margin:0}
+.sm-top .sm-sub{font-size:13px;color:#616061;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sm-page{padding:12px 20px 32px}
+.sm-shot .sm-page{padding:0}
+.sm-shot .sm-top{padding:0 0 10px;margin-bottom:8px}
+
+.sm-daydiv{display:flex;align-items:center;gap:10px;margin:14px 0 8px}
+.sm-daydiv:before,.sm-daydiv:after{content:"";flex:1;height:1px;background:#e8e8e8}
+.sm-daydiv span{border:1px solid #e8e8e8;border-radius:12px;padding:2px 12px;font-size:13px;font-weight:700;color:#454245;background:#fff}
+
+.sm-msg{display:flex;gap:12px;padding:8px 8px;border-radius:6px}
+.sm-msg:hover{background:#f8f8f8}
+.sm-msg-eph{background:#fffbe6}
+.sm-msg-eph:hover{background:#fff7d1}
+.sm-avatar{width:36px;height:36px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;overflow:hidden}
+.sm-avatar img{width:36px;height:36px;object-fit:cover}
+.sm-avatar-emoji{font-size:20px;background:#f0f0f0}
+.sm-msg-body{min-width:0;flex:1}
+.sm-msg-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:1px}
+.sm-name{font-weight:700;font-size:15px;color:#1d1c1d}
+.sm-badge{background:#e8e8e8;color:#616061;font-size:10px;font-weight:700;border-radius:2px;padding:1px 4px;letter-spacing:.4px;text-transform:uppercase}
+.sm-time{font-size:12px;color:#616061}
+.sm-text{font-size:15px;line-height:22px;word-wrap:break-word;overflow-wrap:anywhere}
+.sm-edited{font-size:12px;color:#616061}
+.sm-eph-note{font-size:12px;color:#8a6d1a;margin-top:4px}
+.sm-stream{display:inline-block;margin-left:4px;color:#616061;font-weight:700;animation:sm-pulse 1s ease-in-out infinite}
+@keyframes sm-pulse{0%,100%{opacity:.25}50%{opacity:1}}
+
+.sm-pill{background:#e8f5fa;color:#1264a3;border-radius:3px;padding:0 2px}
+.sm-link{color:#1264a3}
+.sm-emoji-name{color:#616061}
+.sm-code{font-family:Monaco,Menlo,Consolas,"Courier New",monospace;font-size:12px;background:#f8f8f8;border:1px solid #ddd;border-radius:3px;padding:1px 3px;color:#e01e5a}
+.sm-pre{font-family:Monaco,Menlo,Consolas,"Courier New",monospace;font-size:12px;line-height:18px;background:#f8f8f8;border:1px solid #ddd;border-radius:4px;padding:8px;margin:4px 0;white-space:pre-wrap;word-break:break-word;color:#1d1c1d}
+.sm-quote{border-left:4px solid #ddd;margin:4px 0;padding:0 0 0 12px;color:#1d1c1d}
+.sm-list{margin:2px 0;padding-left:22px}
+.sm-list li{margin:1px 0}
+
+.sm-blocks{margin:2px 0}
+.sm-block{margin:6px 0}
+.sm-header-block{font-size:18px;font-weight:900;line-height:24px}
+.sm-section-split{display:flex;gap:12px;align-items:flex-start}
+.sm-section-main{flex:1;min-width:0}
+.sm-section-acc{flex:none}
+.sm-fields{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:6px}
+.sm-field{flex:1 1 40%;min-width:0;font-size:14px;line-height:20px}
+.sm-field-wide{flex-basis:100%}
+.sm-field-title{font-weight:700}
+.sm-context{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;line-height:18px;color:#616061}
+.sm-context .sm-pre,.sm-context .sm-code{font-size:11px}
+.sm-context-img{width:16px;height:16px;border-radius:2px;object-fit:cover}
+.sm-hr{border:0;border-top:1px solid #ddd;margin:10px 0}
+.sm-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sm-btn{display:inline-block;border:1px solid #bbb;border-radius:4px;padding:6px 12px;font-size:14px;font-weight:700;color:#1d1c1d;background:#fff;line-height:16px}
+.sm-btn:hover{text-decoration:none;background:#f8f8f8}
+.sm-btn-primary{background:#007a5a;border-color:#007a5a;color:#fff}
+.sm-btn-danger{background:#e01e5a;border-color:#e01e5a;color:#fff}
+.sm-btn-confirm{margin-left:6px;opacity:.7;font-weight:400}
+.sm-select{display:inline-flex;align-items:center;gap:6px;border:1px solid #bbb;border-radius:4px;padding:6px 10px;font-size:14px;color:#1d1c1d;background:#fff;line-height:16px}
+.sm-select-caret{color:#616061;font-size:12px}
+.sm-options{display:flex;flex-direction:column;gap:4px;font-size:14px}
+.sm-acc-img{max-width:88px;max-height:88px;border-radius:4px;display:block}
+.sm-img{max-width:100%;border-radius:6px;display:block;margin-top:4px}
+.sm-img-title{font-size:13px;font-weight:700;color:#454245}
+.sm-label{font-weight:700;font-size:14px;margin-bottom:4px}
+.sm-hint{font-size:12px;color:#616061;margin-top:4px}
+.sm-input{border:1px solid #bbb;border-radius:4px;padding:8px 10px;font-size:14px;min-height:36px;background:#fff}
+.sm-input-multi{min-height:76px}
+.sm-input-ph{color:#8d8d8e}
+.sm-file-block{font-size:14px;color:#454245}
+.sm-video-thumb{max-width:320px;border-radius:6px;display:block}
+.sm-video-title{font-size:14px;font-weight:700;margin-top:4px}
+.sm-unsupported{display:inline-block;background:#f4f4f4;border:1px solid #ddd;border-radius:4px;padding:4px 8px;font-size:12px;color:#616061;font-family:Monaco,Menlo,monospace}
+.sm-rt-section{margin:2px 0}
+
+.sm-atts{margin-top:4px}
+.sm-att{border-left:4px solid #ddd;border-radius:2px;padding:2px 0 2px 12px;margin:6px 0;max-width:600px}
+.sm-att-pretext{font-size:15px;line-height:22px;margin-top:4px}
+.sm-att-author{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#454245}
+.sm-att-author-icon{width:16px;height:16px;border-radius:2px}
+.sm-att-title{font-size:15px;font-weight:700;margin:2px 0}
+.sm-att-text{font-size:15px;line-height:21px}
+.sm-att-img{max-width:360px;border-radius:6px;display:block;margin-top:6px}
+.sm-att-thumb{max-width:80px;border-radius:4px;display:block;margin-top:6px}
+.sm-att-footer{display:flex;align-items:center;gap:6px;font-size:12px;color:#616061;margin-top:6px}
+.sm-att-footer-icon{width:14px;height:14px;border-radius:2px}
+
+.sm-files{margin-top:6px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.sm-file-img{max-width:480px;max-height:420px;border-radius:8px;border:1px solid #e8e8e8;display:block}
+.sm-file-card{display:flex;gap:10px;align-items:center;border:1px solid #ddd;border-radius:8px;padding:8px 12px;max-width:420px}
+.sm-file-icon{font-size:20px}
+.sm-file-name{font-weight:700;font-size:14px}
+.sm-file-meta{font-size:12px;color:#616061}
+
+.sm-reactions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.sm-reaction{display:inline-flex;align-items:center;gap:5px;background:#f0f0f0;border:1px solid #f0f0f0;border-radius:12px;padding:1px 8px;font-size:12px;line-height:18px;color:#454245}
+.sm-reaction-count{font-weight:700;font-size:12px}
+
+.sm-replies{display:inline-flex;align-items:center;gap:8px;margin-top:4px;font-size:13px;font-weight:700;color:#1264a3}
+.sm-replies-time{font-weight:400;color:#616061}
+.sm-empty{color:#616061;font-size:14px;padding:16px 0}
+
+.sm-assist{border:1px solid #e8e8e8;border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fafafa}
+.sm-assist-title{font-weight:700;font-size:14px}
+.sm-assist-status{font-size:13px;color:#616061;margin-top:2px}
+.sm-assist-status .sm-stream{margin-left:2px}
+.sm-prompts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.sm-prompt{border:1px solid #ddd;border-radius:16px;padding:5px 12px;font-size:13px;background:#fff}
+
+.sm-cards{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+.sm-card{border:1px solid #e8e8e8;border-radius:8px;padding:10px 14px;min-width:150px}
+.sm-card-k{font-size:12px;color:#616061;text-transform:uppercase;letter-spacing:.4px}
+.sm-card-v{font-size:16px;font-weight:700;margin-top:2px}
+.sm-h2{font-size:15px;font-weight:900;margin:18px 0 6px}
+.sm-table{border-collapse:collapse;width:100%;max-width:900px;font-size:14px}
+.sm-table th{text-align:left;font-size:12px;color:#616061;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:4px 10px 4px 0;border-bottom:1px solid #e8e8e8}
+.sm-table td{padding:6px 10px 6px 0;border-bottom:1px solid #f2f2f2;vertical-align:top}
+.sm-tag{display:inline-block;background:#f0f0f0;color:#454245;border-radius:10px;padding:0 8px;font-size:11px;font-weight:700}
+.sm-muted{color:#616061}
+`;
+
+function ctxOf(store: Store): RenderContext {
+  return { users: store.users, channels: store.channels, botUserId: store.bot.userId };
+}
+
+function query(opts: RenderOptions): string {
+  if (opts.screenshot) return "?screenshot";
+  if (opts.refreshSec) return `?refresh=${opts.refreshSec}`;
+  return "";
+}
+
+function channelHref(channelId: string, opts: RenderOptions): string {
+  return `/c/${encodeURIComponent(channelId)}${query(opts)}`;
+}
+
+function threadHref(channelId: string, ts: string, opts: RenderOptions): string {
+  return `/c/${encodeURIComponent(channelId)}/t/${encodeURIComponent(ts)}${query(opts)}`;
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function timeOf(ts: string): string {
+  const d = new Date(Number(ts) * 1000);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function dayLabel(ts: string): string {
+  const d = new Date(Number(ts) * 1000);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  if (dayKey(d) === dayKey(now)) return "Today";
+  const yesterday = new Date(now.getTime() - 86_400_000);
+  if (dayKey(d) === dayKey(yesterday)) return "Yesterday";
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function hashIndex(s: string, buckets: number): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % buckets;
+}
+
+function initials(name: string): string {
+  const words = name
+    .replace(/[^\p{L}\p{N} ]/gu, " ")
+    .trim()
+    .split(/\s+/);
+  const letters = words
+    .slice(0, 2)
+    .map((w) => w[0] ?? "")
+    .join("");
+  return (letters || name.slice(0, 2) || "?").toUpperCase();
+}
+
+function channelLabel(store: Store, c: SlackChannel): string {
+  if (!c.is_im) return `#${c.name}`;
+  const peer = c.user ? store.users.get(c.user) : undefined;
+  return peer ? displayName(peer) : c.name;
+}
+
+function channelIcon(c: SlackChannel): string {
+  if (c.is_im) return "@";
+  if (c.is_private) return "🔒";
+  return "#";
+}
+
+function channelKind(c: SlackChannel): string {
+  if (c.is_im) return "DM";
+  if (c.is_private) return "private";
+  return "public";
+}
+
+// ------------------------------------------------------------------ message
+
+function authorName(store: Store, m: SlackMessage): string {
+  if (m.username) return m.username;
+  const user = m.user ? store.users.get(m.user) : undefined;
+  if (user) return user.real_name || user.name;
+  return m.bot_profile?.name ?? m.user ?? "unknown";
+}
+
+function avatarHtml(m: SlackMessage, name: string): string {
+  const emojiName = m.icons?.emoji;
+  if (emojiName) {
+    const char = emojiChar(emojiName) ?? emojiName.replace(/:/g, "");
+    return `<div class="sm-avatar sm-avatar-emoji">${escapeHtml(char)}</div>`;
+  }
+  const imageUrl = m.icons?.image_72 ?? m.icons?.image_48 ?? m.icons?.image_64;
+  if (imageUrl && /^(https?:\/\/|\/)/.test(imageUrl)) {
+    return `<div class="sm-avatar"><img src="${escapeHtml(imageUrl)}" alt=""></div>`;
+  }
+  const seed = m.user ?? m.bot_id ?? name;
+  const color = AVATAR_COLORS[hashIndex(seed, AVATAR_COLORS.length)];
+  return `<div class="sm-avatar" style="background:${color}">${escapeHtml(initials(name))}</div>`;
+}
+
+function reactionsHtml(store: Store, m: SlackMessage): string {
+  if (!m.reactions?.length) return "";
+  const chips = m.reactions.map((r) => {
+    const who = r.users
+      .map((id) => {
+        const user = store.users.get(id);
+        return user ? displayName(user) : id;
+      })
+      .join(", ");
+    const char = emojiChar(r.name) ?? `:${r.name}:`;
+    return `<span class="sm-reaction" title="${escapeHtml(who)}">${escapeHtml(char)}<span class="sm-reaction-count">${r.count}</span></span>`;
+  });
+  return `<div class="sm-reactions">${chips.join("")}</div>`;
+}
+
+/** The mock serves url_private behind a token, so browser requests carry it in the query. */
+function fileUrl(f: SlackFile, token: string): string {
+  if (!f.url_private) return "";
+  return escapeHtml(`${f.url_private}${f.url_private.includes("?") ? "&" : "?"}t=${token}`);
+}
+
+function filesHtml(files: SlackFile[] | undefined, token: string): string {
+  if (!files?.length) return "";
+  const cards = files.map((f) => {
+    if (f.mimetype?.startsWith("image/") && f.url_private) {
+      return `<img class="sm-file-img" src="${fileUrl(f, token)}" alt="${escapeHtml(f.title || f.name)}">`;
+    }
+    const href = fileUrl(f, token);
+    const name = escapeHtml(f.title || f.name);
+    const meta = `${escapeHtml(f.pretty_type || f.filetype || "File")} · ${fileSize(f.size ?? 0)}`;
+    const label = href ? `<a href="${href}">${name}</a>` : name;
+    return `<div class="sm-file-card"><div class="sm-file-icon">📄</div><div><div class="sm-file-name">${label}</div><div class="sm-file-meta">${meta}</div></div></div>`;
+  });
+  return `<div class="sm-files">${cards.join("")}</div>`;
+}
+
+interface MessageFlags {
+  ephemeral?: boolean;
+  threadLink?: boolean;
+  /** Date dividers between days (channel view only, like Slack). */
+  dividers?: boolean;
+}
+
+function renderMessage(
+  store: Store,
+  ctx: RenderContext,
+  m: SlackMessage,
+  opts: RenderOptions,
+  flags: MessageFlags = {},
+): string {
+  const name = authorName(store, m);
+  const isApp = Boolean(m.bot_id);
+  const blocks = Array.isArray(m.blocks) && m.blocks.length ? m.blocks : undefined;
+  const body: string[] = [];
+  if (blocks) body.push(renderBlocks(blocks, ctx));
+  else if (m.text) body.push(`<div class="sm-text">${mrkdwnToHtml(m.text, ctx)}</div>`);
+  if (m.edited) body.push(`<div class="sm-edited">(edited)</div>`);
+  if (m.attachments?.length) body.push(renderAttachments(m.attachments, ctx));
+  body.push(filesHtml(m.files, store.bot.token));
+  body.push(reactionsHtml(store, m));
+  if (flags.ephemeral) body.push(`<div class="sm-eph-note">Only visible to you</div>`);
+  if (flags.threadLink && m.reply_count) {
+    const count = `${m.reply_count} ${m.reply_count === 1 ? "reply" : "replies"}`;
+    const last = m.latest_reply
+      ? `<span class="sm-replies-time">Last reply ${timeOf(m.latest_reply)}</span>`
+      : "";
+    body.push(
+      `<a class="sm-replies" href="${threadHref(m.channel, m.thread_ts ?? m.ts, opts)}">${count}${last}</a>`,
+    );
+  }
+  const streaming =
+    m.streaming_state === "in_progress"
+      ? `<span class="sm-stream" title="streaming">•••</span>`
+      : "";
+  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
+}
+
+function renderMessageList(
+  store: Store,
+  ctx: RenderContext,
+  messages: Array<SlackMessage & { _ephemeral?: boolean }>,
+  opts: RenderOptions,
+  flags: MessageFlags = {},
+): string {
+  const out: string[] = [];
+  let day = "";
+  for (const m of messages) {
+    const label = flags.dividers === false ? "" : dayLabel(m.ts);
+    if (label && label !== day) {
+      day = label;
+      out.push(`<div class="sm-daydiv"><span>${escapeHtml(label)}</span></div>`);
+    }
+    out.push(renderMessage(store, ctx, m, opts, { ...flags, ephemeral: m._ephemeral === true }));
+  }
+  return out.join("");
+}
+
+// -------------------------------------------------------------------- shell
+
+function sidebar(store: Store, opts: RenderOptions, active?: string): string {
+  const channels = [...store.channels.values()].sort((a, b) =>
+    channelLabel(store, a).localeCompare(channelLabel(store, b)),
+  );
+  const links = channels
+    .map(
+      (c) =>
+        `<a class="${c.id === active ? "sm-active" : ""}" href="${channelHref(c.id, opts)}">${escapeHtml(channelIcon(c))} ${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</a>`,
+    )
+    .join("");
+  return `<nav class="sm-side"><div class="sm-side-title"><a href="/${query(opts)}" style="color:#fff">${escapeHtml(store.team.name)}</a><span class="sm-side-team">${escapeHtml(store.team.id)} · slack-mock</span></div><div class="sm-side-h">Channels</div>${links}</nav>`;
+}
+
+function shell(
+  store: Store,
+  opts: RenderOptions,
+  title: string,
+  header: string,
+  main: string,
+  active?: string,
+): string {
+  const refresh =
+    opts.refreshSec && !opts.screenshot
+      ? `<meta http-equiv="refresh" content="${Math.max(1, Math.floor(opts.refreshSec))}">`
+      : "";
+  const head = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title>${refresh}<style>${CSS}</style></head>`;
+  if (opts.screenshot) {
+    return `${head}<body><div class="sm-shot">${header}<div class="sm-page">${main}</div></div></body></html>`;
+  }
+  return `${head}<body><div class="sm-app">${sidebar(store, opts, active)}<div class="sm-main">${header}<div class="sm-page">${main}</div></div></div></body></html>`;
+}
+
+function topbar(title: string, sub: string): string {
+  return `<div class="sm-top"><h1>${title}</h1>${sub ? `<div class="sm-sub">${sub}</div>` : ""}</div>`;
+}
+
+// -------------------------------------------------------------------- views
+
+function indexView(store: Store, opts: RenderOptions): string {
+  const cards = [
+    ["Workspace", escapeHtml(store.team.name)],
+    ["Team id", escapeHtml(store.team.id)],
+    ["Bot user", escapeHtml(`${store.app.name} (${store.bot.userId})`)],
+    ["Connections", String(opts.connections ?? 0)],
+  ]
+    .map(
+      ([k, v]) =>
+        `<div class="sm-card"><div class="sm-card-k">${k}</div><div class="sm-card-v">${v}</div></div>`,
+    )
+    .join("");
+
+  const channels = [...store.channels.values()];
+  const channelRows = channels
+    .map((c) => {
+      const count = store.messages.get(c.id)?.length ?? 0;
+      return `<tr><td><a href="${channelHref(c.id, opts)}">${escapeHtml(channelIcon(c))} ${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</a></td><td><span class="sm-tag">${channelKind(c)}</span></td><td class="sm-muted">${c.id}</td><td>${count}</td></tr>`;
+    })
+    .join("");
+
+  const userRows = [...store.users.values()]
+    .map(
+      (u) =>
+        `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.real_name)}</td><td class="sm-muted">${escapeHtml(u.profile.email ?? "")}</td><td class="sm-muted">${u.id}</td><td>${u.is_bot ? `<span class="sm-tag">bot</span>` : ""}</td></tr>`,
+    )
+    .join("");
+
+  const main = `<div class="sm-cards">${cards}</div>
+<div class="sm-h2">Channels</div>
+${
+  channels.length
+    ? `<table class="sm-table"><tr><th>Name</th><th>Type</th><th>Id</th><th>Messages</th></tr>${channelRows}</table>`
+    : `<div class="sm-empty">No channels yet</div>`
+}
+<div class="sm-h2">Users</div>
+<table class="sm-table"><tr><th>Name</th><th>Real name</th><th>Email</th><th>Id</th><th></th></tr>${userRows}</table>`;
+
+  return shell(
+    store,
+    opts,
+    `${store.team.name} · slack-mock`,
+    topbar(escapeHtml(store.team.name), "slack-mock workspace"),
+    main,
+  );
+}
+
+function channelView(store: Store, opts: RenderOptions, channelId: string): string {
+  const channel = store.channels.get(channelId);
+  const ctx = ctxOf(store);
+  if (!channel) return notFound(store, opts, "Channel not found");
+
+  const history = store.history(channel.id, { limit: 1000 }).items;
+  const ephemerals = store.ephemerals
+    .filter((e) => e.channel === channel.id)
+    .map((e) => ({ ...e, _ephemeral: true }));
+  const messages = [...history, ...ephemerals].sort((a, b) => Number(a.ts) - Number(b.ts));
+
+  const sub = [channel.topic.value, channel.purpose.value].filter(Boolean).join(" · ");
+  const main = messages.length
+    ? renderMessageList(store, ctx, messages, opts, { threadLink: true, dividers: true })
+    : `<div class="sm-empty">No messages yet</div>`;
+
+  const label = channelLabel(store, channel);
+  return shell(
+    store,
+    opts,
+    `${label} · slack-mock`,
+    topbar(escapeHtml(label), escapeHtml(sub)),
+    main,
+    channel.id,
+  );
+}
+
+function assistantPanel(store: Store, channelId: string, ts: string): string {
+  const thread = store.assistantThreads.get(`${channelId}:${ts}`);
+  if (!thread) return "";
+  const parts: string[] = [];
+  if (thread.title)
+    parts.push(`<div class="sm-assist-title">${plainTextToHtml(thread.title)}</div>`);
+  if (thread.status)
+    parts.push(
+      `<div class="sm-assist-status">${plainTextToHtml(thread.status)}<span class="sm-stream">•••</span></div>`,
+    );
+  const prompts = Array.isArray(thread.prompts) ? thread.prompts : [];
+  if (prompts.length) {
+    const chips = prompts
+      .map((p) => {
+        const prompt = typeof p === "object" && p !== null ? (p as Record<string, unknown>) : {};
+        const title = typeof prompt.title === "string" ? prompt.title : "";
+        const message = typeof prompt.message === "string" ? prompt.message : "";
+        return `<span class="sm-prompt" title="${escapeHtml(message)}">${plainTextToHtml(title || message)}</span>`;
+      })
+      .join("");
+    const heading = thread.promptsTitle
+      ? `<div class="sm-assist-status">${plainTextToHtml(thread.promptsTitle)}</div>`
+      : "";
+    parts.push(`${heading}<div class="sm-prompts">${chips}</div>`);
+  }
+  if (!parts.length) return "";
+  return `<div class="sm-assist">${parts.join("")}</div>`;
+}
+
+function threadView(store: Store, opts: RenderOptions, channelId: string, ts: string): string {
+  const channel = store.channels.get(channelId);
+  const ctx = ctxOf(store);
+  if (!channel) return notFound(store, opts, "Channel not found");
+  const parent = store.findMessage(channel.id, ts);
+  if (!parent) return notFound(store, opts, "Message not found");
+
+  const items = store.replies(channel.id, ts, { limit: 1000 }).items;
+  const replies = items.slice(1);
+  const label = channelLabel(store, channel);
+  const repliesBar = replies.length
+    ? `<div class="sm-daydiv"><span>${replies.length} ${replies.length === 1 ? "reply" : "replies"}</span></div>`
+    : `<div class="sm-empty">No replies yet</div>`;
+
+  const main = `${assistantPanel(store, channel.id, ts)}${renderMessage(store, ctx, parent, opts)}${repliesBar}${renderMessageList(store, ctx, replies, opts, { dividers: false })}`;
+
+  const header = topbar(
+    `Thread <span class="sm-muted">·</span> <a href="${channelHref(channel.id, opts)}">${escapeHtml(label)}</a>`,
+    "",
+  );
+  return shell(store, opts, `Thread · ${label}`, header, main, channel.id);
+}
+
+function notFound(store: Store, opts: RenderOptions, message: string): string {
+  return shell(
+    store,
+    opts,
+    message,
+    topbar(escapeHtml(message), ""),
+    `<div class="sm-empty">${escapeHtml(message)}</div>`,
+  );
+}
+
+export function renderPage(store: Store, view: View, opts: RenderOptions = {}): string {
+  switch (view.kind) {
+    case "channel":
+      return channelView(store, opts, view.channel);
+    case "thread":
+      return threadView(store, opts, view.channel, view.ts);
+    default:
+      return indexView(store, opts);
+  }
+}

@@ -1,0 +1,7 @@
+node_modules
+data/
+*.jsonl
+!test/fixtures/*.jsonl
+.DS_Store
+*.png
+*.log
