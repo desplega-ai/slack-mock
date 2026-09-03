@@ -119,6 +119,19 @@ docker build -t slack-mock-demo . && docker run -p 8080:8080 -e ADMIN_AUTH=demo:
 `RESET_EVERY_HOURS` and `MANIFEST` configure it. The same knobs exist on the
 CLI (`--public-url`, `--auth`) and as `SlackMockOptions` (`publicUrl`, `adminAuth`).
 
+The same image also serves a workspace for an *external* bot, the Agent Swarm demo at
+https://swarm-demo.slack-mock.dev (`fly.swarm.toml`, app `slack-mock-swarm`). Knobs that make
+that possible, all read by `scripts/demo-server.ts`:
+
+| Env | Effect |
+|---|---|
+| `DEMO_BOT=off` | Skip the built-in demo bot; some other Bolt app connects over Socket Mode. |
+| `SLACK_MOCK_BOT_TOKEN`, `SLACK_MOCK_APP_TOKEN` | The tokens the app must present (`botToken` / `appToken` options). The defaults are public, so set these on any shared host. |
+| `APP_NAME` | Bot display name (`appName`). |
+| `SEED_FILE` | JSON with `users`, `channels`, `messages` and `driver.prompts` (`scripts/seed.ts`); replaces the built-in `#general` and is applied whenever the journal has no channels, so the workspace comes back after every reset. `seeds/agent-swarm-demo.json` is the shipped example. |
+| `UI_PUBLIC=true` | Keep `/` and `/c/...` readable without credentials while `ADMIN_AUTH` still gates `/mock/*` (`publicUi` option). |
+| `DRIVER_INTERVAL_MINUTES` | Every N minutes post the next `driver.prompts` entry as that user, mentioning the bot, while an app is connected (`scripts/driver.ts`). `0` disables it. |
+
 ## Docs
 
 - `skills/slack-mock/SKILL.md`: how to use the package from another repo (agents and humans).
