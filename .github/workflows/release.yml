@@ -25,9 +25,17 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Decide whether this version needs publishing
         id: check
+        env:
+          NPM_TOKEN_SET: ${{ secrets.NPM_TOKEN != '' }}
         run: |
           NAME=$(node -p "require('./package.json').name")
           VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$NPM_TOKEN_SET" != "true" ]; then
+            echo "::warning::NPM_TOKEN secret is not set; skipping publish of $NAME@$VERSION"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
             echo "$NAME@$VERSION is already published"
             echo "publish=false" >> "$GITHUB_OUTPUT"
@@ -35,7 +43,6 @@ jobs:
             echo "$NAME@$VERSION is new"
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - if: steps.check.outputs.publish == 'true'
         run: bun install --frozen-lockfile
       - if: steps.check.outputs.publish == 'true'
@@ -43,7 +50,13 @@ jobs:
       - if: steps.check.outputs.publish == 'true'
         run: bun run build
       - if: steps.check.outputs.publish == 'true'
-        run: npm publish --provenance --access public
+        # Provenance needs a public repository; skip the flag while the repo is private.
+        run: |
+          if [ "${{ github.event.repository.private }}" = "false" ]; then
+            npm publish --provenance --access public
+          else
+            npm publish --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - if: steps.check.outputs.publish == 'true'
