@@ -14,6 +14,7 @@ no runtime dependencies.
 ```bash
 bun install
 bun run start                 # slack-mock serve --port 4040
+bun run demo                  # same, seeded with threads, blocks, files, an ephemeral and a DM
 ```
 
 Point your bot at it:
