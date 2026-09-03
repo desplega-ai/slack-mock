@@ -17,7 +17,7 @@ primary_region = "cdg"
   UI_PUBLIC = "true"
   APP_NAME = "Agent Swarm"
   SEED_FILE = "/app/seeds/agent-swarm-demo.json"
-  DRIVER_INTERVAL_MINUTES = "20"
+  DRIVER_INTERVAL_MINUTES = "0"
 
 [[mounts]]
   source = "data"
