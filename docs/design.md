@@ -127,6 +127,18 @@ re-applied after every daily reset, and `DRIVER_INTERVAL_MINUTES=20` so a seeded
 persona mentions the bot with a realistic request while it is connected. The
 deploy workflow ships both apps from `main`.
 
+The HTML UI is live: each channel page opens `GET /c/<channel>/events`, a
+server-sent-events stream of store changes for that channel, and re-fetches the
+page on every event, swapping the message column, the thread panel and the
+sidebar in place. Messages carry `data-ts`, so new ones get a yellow flash and
+edited ones a blue one. `?live=0` turns it off and `?refresh=N` still polls.
+Posting from a public-read workspace uses a second credential: `PRESENTER_AUTH`
+(`presenterAuth`) may call `POST /mock/messages` and `GET /mock/presenter`
+only. The composer stores it in `localStorage` after an inline sign-in (or from
+`#presenter=user:password` in the URL) and sends it as basic auth. A `/mock`
+request that carries a wrong `Authorization` header gets 403 without
+`WWW-Authenticate`, so the composer's fetch never triggers the browser prompt.
+
 ## Not in the MVP
 
 - HTTP mode (Events API over HTTP with signed requests) instead of Socket Mode.

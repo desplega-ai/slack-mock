@@ -38,7 +38,7 @@ Talk to the bot as a human and watch the thread:
 ```bash
 curl -X POST http://127.0.0.1:4040/mock/messages -H 'content-type: application/json' \
   -d '{"channel":"general","user":"alice","text":"<@U0BOT00000> hello"}'
-open http://127.0.0.1:4040/c/general            # live view (add ?refresh=2)
+open http://127.0.0.1:4040/c/general            # live view: new messages arrive over SSE and flash (?live=0 turns it off, ?refresh=2 polls instead)
 bun src/cli.ts screenshot http://127.0.0.1:4040/c/general --out general.png
 ```
 
@@ -129,7 +129,8 @@ that possible, all read by `scripts/demo-server.ts`:
 | `SLACK_MOCK_BOT_TOKEN`, `SLACK_MOCK_APP_TOKEN` | The tokens the app must present (`botToken` / `appToken` options). The defaults are public, so set these on any shared host. |
 | `APP_NAME` | Bot display name (`appName`). |
 | `SEED_FILE` | JSON with `users`, `channels`, `messages` and `driver.prompts` (`scripts/seed.ts`); replaces the built-in `#general` and is applied whenever the journal has no channels, so the workspace comes back after every reset. `seeds/agent-swarm-demo.json` is the shipped example. |
-| `UI_PUBLIC=true` | Keep `/` and `/c/...` readable without credentials while `ADMIN_AUTH` still gates `/mock/*` (`publicUi` option). |
+| `UI_PUBLIC=true` | Keep `/` and `/c/...` readable without credentials while `ADMIN_AUTH` still gates `/mock/*` (`publicUi` option). The composer then shows a sign-in instead of the browser's basic-auth prompt. |
+| `PRESENTER_AUTH` | `user:password` that may only `POST /mock/messages` and `GET /mock/presenter` (`presenterAuth` option). Lets a presenter drive a public-read workspace from the composer without the admin credential. Opening `/c/<channel>#presenter=user:password` signs that browser in. |
 | `DRIVER_INTERVAL_MINUTES` | Every N minutes post the next `driver.prompts` entry as that user, mentioning the bot, while an app is connected (`scripts/driver.ts`). `0` disables it. |
 
 ## Docs

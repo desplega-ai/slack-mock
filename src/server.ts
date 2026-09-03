@@ -80,6 +80,12 @@ export interface SlackMockOptions extends StoreOptions {
    * the /mock admin API. Default false: `adminAuth` covers both surfaces.
    */
   publicUi?: boolean;
+  /**
+   * "user:password" that may only post messages (`POST /mock/messages`) and check its role
+   * (`GET /mock/presenter`). With `publicUi` the HTML composer shows a sign-in for it, so a presenter
+   * can drive a public-read workspace without the admin credential. `adminAuth` always implies it.
+   */
+  presenterAuth?: string;
   log?: boolean | ((msg: string) => void);
 }
 
@@ -274,13 +280,19 @@ export class SlackMock {
   private authorizedAdmin(req: Request): boolean {
     const expected = this.opts.adminAuth;
     if (!expected) return true;
-    const header = req.headers.get("authorization") ?? "";
-    if (!header.toLowerCase().startsWith("basic ")) return false;
-    try {
-      return Buffer.from(header.slice(6).trim(), "base64").toString("utf8") === expected;
-    } catch {
-      return false;
-    }
+    return basicAuthMatches(req, expected);
+  }
+
+  /** `presenterAuth` (or `adminAuth`) may post messages and read its role, nothing else. */
+  private authorizedPresenter(req: Request): boolean {
+    if (this.authorizedAdmin(req)) return true;
+    const expected = this.opts.presenterAuth;
+    return Boolean(expected) && basicAuthMatches(req, expected as string);
+  }
+
+  /** Visitors can read the UI but posting needs a credential: the composer shows a sign-in. */
+  private get writeGated(): boolean {
+    return this.opts.publicUi === true && Boolean(this.opts.adminAuth);
   }
 
   get apiUrl(): string {
@@ -326,12 +338,10 @@ export class SlackMock {
     try {
       const isUiSurface = path === "/" || path === "" || path.startsWith("/c/");
       const isAdminSurface = path.startsWith("/mock/") || (isUiSurface && !this.opts.publicUi);
-      if (isAdminSurface && !this.authorizedAdmin(req)) {
-        return new Response("authentication required", {
-          status: 401,
-          headers: { "www-authenticate": 'Basic realm="slack-mock"' },
-        });
-      }
+      const isPresenterRoute =
+        (path === "/mock/messages" && req.method === "POST") || path === "/mock/presenter";
+      const allowed = isPresenterRoute ? this.authorizedPresenter(req) : this.authorizedAdmin(req);
+      if (isAdminSurface && !allowed) return denied(req, path);
       if (path.startsWith("/link/") || path === "/link") {
         const ticket = url.searchParams.get("ticket") ?? "";
         if (!this.hub.tickets.has(ticket)) return new Response("invalid ticket", { status: 403 });
@@ -347,6 +357,15 @@ export class SlackMock {
       if (path.startsWith("/actions/"))
         return await this.handleResponseUrl(req, path.slice("/actions/".length));
       if (path.startsWith("/mock/")) return await this.handleAdmin(req, path.slice(6), url);
+      const events = /^\/c\/([^/]+)\/events\/?$/.exec(path);
+      if (events) {
+        const channel = this.store.channelByName(events[1]!)?.id ?? events[1]!;
+        if (!this.store.channels.has(channel))
+          return new Response("channel not found", { status: 404 });
+        // Bun closes idle HTTP responses after 10s by default; an SSE stream must outlive that.
+        server.timeout(req, 0);
+        return this.handleEvents(channel);
+      }
       return this.handleUi(path, url);
     } catch (e) {
       this.log(`unhandled error on ${req.method} ${path}: ${e instanceof Error ? e.stack : e}`);
@@ -575,6 +594,8 @@ export class SlackMock {
             : undefined
         : undefined,
       threadView: url.searchParams.has("full") ? ("full" as const) : ("panel" as const),
+      live: url.searchParams.get("live") !== "0",
+      writeGated: this.writeGated,
     };
     let html: string;
     if (path === "/" || path === "") html = renderPage(this.store, { kind: "index" }, opts);
@@ -589,6 +610,52 @@ export class SlackMock {
         : renderPage(this.store, { kind: "channel", channel }, opts);
     }
     return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+  }
+
+  /**
+   * Server-sent events for one channel: every store change that touches it, plus workspace-wide
+   * ones (users, files). The HTML UI listens here and re-fetches the page on each event.
+   */
+  private handleEvents(channelId: string): Response {
+    const enc = new TextEncoder();
+    let unsubscribe: () => void = () => {};
+    let ping: ReturnType<typeof setInterval> | undefined;
+    const stop = () => {
+      unsubscribe();
+      if (ping) clearInterval(ping);
+    };
+    const stream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        const send = (event: string, data: unknown) => {
+          try {
+            controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+          } catch {
+            stop();
+          }
+        };
+        send("hello", { channel: channelId });
+        unsubscribe = this.store.onChange((change) => {
+          if (change.kind === "api.call" || change.kind.startsWith("view.")) return;
+          const scoped = changeChannel(change);
+          if (scoped && scoped !== channelId) return;
+          send("change", {
+            kind: change.kind,
+            channel: scoped ?? null,
+            ts: "message" in change ? change.message.ts : undefined,
+          });
+        });
+        ping = setInterval(() => send("ping", Date.now()), 25_000);
+        (ping as { unref?: () => void }).unref?.();
+      },
+      cancel: stop,
+    });
+    return new Response(stream, {
+      headers: {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache, no-transform",
+        "x-accel-buffering": "no",
+      },
+    });
   }
 
   // -------------------------------------------------- event dispatching
@@ -1174,6 +1241,8 @@ export class SlackMock {
         ? ((await req.json().catch(() => ({}))) as Record<string, unknown>)
         : {};
     try {
+      if (path === "presenter")
+        return json({ ok: true, role: this.authorizedAdmin(req) ? "admin" : "presenter" });
       if (path === "state") {
         return json({
           team: this.store.team,
@@ -1261,3 +1330,35 @@ function findButton(
 }
 
 export { SlackApiError };
+
+/** Channel a store change belongs to, or undefined for workspace-wide changes. */
+function changeChannel(change: Change): string | undefined {
+  if ("message" in change) return change.message.channel;
+  if ("channel" in change)
+    return typeof change.channel === "string" ? change.channel : change.channel.id;
+  return undefined;
+}
+
+function basicAuthMatches(req: Request, expected: string): boolean {
+  const header = req.headers.get("authorization") ?? "";
+  if (!header.toLowerCase().startsWith("basic ")) return false;
+  try {
+    return Buffer.from(header.slice(6).trim(), "base64").toString("utf8") === expected;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 401 + WWW-Authenticate makes the browser ask for credentials. A /mock request that already
+ * carried a (wrong) Authorization header gets a plain 403 instead, so the composer's fetch never
+ * triggers the native prompt and can show its own sign-in form.
+ */
+function denied(req: Request, path: string): Response {
+  if (path.startsWith("/mock/") && req.headers.has("authorization"))
+    return new Response("forbidden", { status: 403 });
+  return new Response("authentication required", {
+    status: 401,
+    headers: { "www-authenticate": 'Basic realm="slack-mock"' },
+  });
+}
