@@ -203,9 +203,20 @@ describe.skipIf(!ENABLED)("agent-swarm against slack-mock", () => {
     );
 
     if (findChrome()) {
-      const out = join(import.meta.dir, "artifacts", "agent-swarm-thread.png");
-      await screenshot(`${mock.baseUrl}/c/C0GENERAL0/t/${ask.ts}`, { out });
-      expect(existsSync(out)).toBe(true);
+      const dir = join(import.meta.dir, "artifacts");
+      const thread = join(dir, "agent-swarm-thread.png");
+      await screenshot(`${mock.baseUrl}/c/C0GENERAL0/t/${ask.ts}`, { out: thread, height: 700 });
+      await screenshot(`${mock.baseUrl}/c/C0GENERAL0`, {
+        out: join(dir, "agent-swarm-channel.png"),
+        height: 700,
+      });
+      // Desktop layout with the thread side panel (no ?screenshot, so the full UI renders).
+      await screenshot(`${mock.baseUrl}/c/C0GENERAL0/t/${ask.ts}?screenshot=0`, {
+        out: join(dir, "agent-swarm-desktop.png"),
+        width: 1280,
+        height: 900,
+      });
+      expect(existsSync(thread)).toBe(true);
     }
   });
 

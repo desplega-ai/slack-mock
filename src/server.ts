@@ -493,7 +493,9 @@ export class SlackMock {
   }
 
   private handleUi(path: string, url: URL): Response {
-    const screenshot = url.searchParams.has("screenshot");
+    const screenshotParam = url.searchParams.get("screenshot");
+    const screenshot =
+      screenshotParam !== null && screenshotParam !== "0" && screenshotParam !== "false";
     const refresh = Number(url.searchParams.get("refresh"));
     const panel = url.searchParams.get("panel") ?? this.opts.panelWidth;
     const opts = {
