@@ -101,11 +101,12 @@ bun test                      # unit and integration tests (real Bolt client)
 bun run test:e2e              # boots ../agent-swarm against the mock (AGENT_SWARM_REPO to override; needs agent-swarm PR #1310)
 bun run typecheck
 bun run lint
-bun run build                 # dist/ (JS for Bun + .d.ts); `bun run release` publishes, or push a v* tag
+bun run build                 # dist/ (JS for Bun + .d.ts). CI publishes to npm when the version in package.json changes on main
 ```
 
 ## Docs
 
+- `skills/slack-mock/SKILL.md`: how to use the package from another repo (agents and humans).
 - `docs/design.md`: architecture, decisions, status.
 - `docs/research/`: the research behind it (agent-swarm's inbound/outbound
   Slack surface, Bolt and socket-mode internals, payload shapes, protocol

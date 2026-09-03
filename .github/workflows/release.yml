@@ -1,12 +1,18 @@
 name: release
+# Publishes to npm whenever the version in package.json on main is not on the registry yet,
+# then tags the commit (v<version>) and creates a GitHub release.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -17,9 +23,35 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - run: bun install --frozen-lockfile
-      - run: bun run typecheck && bun run lint && bun test
-      - run: bun run build
-      - run: npm publish --provenance --access public
+      - name: Decide whether this version needs publishing
+        id: check
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION is already published"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$NAME@$VERSION is new"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - if: steps.check.outputs.publish == 'true'
+        run: bun install --frozen-lockfile
+      - if: steps.check.outputs.publish == 'true'
+        run: bun run typecheck && bun run lint && bun test
+      - if: steps.check.outputs.publish == 'true'
+        run: bun run build
+      - if: steps.check.outputs.publish == 'true'
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - if: steps.check.outputs.publish == 'true'
+        name: Tag and create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.check.outputs.version }}"
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" --title "$TAG" --generate-notes
