@@ -508,4 +508,109 @@ describe("renderPage", () => {
       "Message not found",
     );
   });
+
+  test("panel width defaults to 50% and follows panelWidth", () => {
+    const { store, channel, human } = workspace();
+    const view = { kind: "thread", channel: channel.id, ts: human.ts } as const;
+    expect(renderPage(store, view)).toContain(`<body style="--sm-panel-w:50%">`);
+    const wide = renderPage(store, view, { panelWidth: "70%" });
+    expect(wide).toContain(`<body style="--sm-panel-w:70%">`);
+    // The width rides along in links so the next thread keeps it.
+    expect(wide).toContain("panel=70");
+    const px = renderPage(store, view, { panelWidth: "640px" });
+    expect(px).toContain(`<body style="--sm-panel-w:640px">`);
+    expect(px).toContain("panel=640px");
+    // Junk falls back to the default.
+    expect(renderPage(store, view, { panelWidth: "url(evil)" })).toContain(
+      `<body style="--sm-panel-w:50%">`,
+    );
+  });
+
+  test("full thread view drops the channel column and offers collapse", () => {
+    const { store, channel, human } = workspace();
+    const html = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { threadView: "full" },
+    );
+    expect(html).not.toContain(`<aside class="sm-panel">`);
+    expect(html).not.toContain(`class="sm-msg sm-msg-open"`);
+    expect(html).toContain(`<nav class="sm-side">`);
+    expect(html).toContain("Collapse to panel");
+    expect(html).toContain(`<a class="sm-back" href="/c/C0GEN">← #general</a>`);
+    // Parent appears once: there is no channel column beside the thread.
+    expect(html.match(/please deploy/g)?.length).toBe(1);
+    // Collapse drops ?full but keeps the rest.
+    const withRefresh = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { threadView: "full", refreshSec: 2, panelWidth: "70%" },
+    );
+    expect(withRefresh).toContain(`href="/c/C0GEN/t/${human.ts}?refresh=2&panel=70"`);
+  });
+
+  test("panel mode links to the full view", () => {
+    const { store, channel, human } = workspace();
+    const html = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
+    expect(html).toContain(
+      `<a class="sm-panel-expand" href="/c/C0GEN/t/${human.ts}?full" title="Expand thread">⤢</a>`,
+    );
+  });
+
+  test("Escape closes the thread, only outside screenshot mode", () => {
+    const { store, channel, human } = workspace();
+    const view = { kind: "thread", channel: channel.id, ts: human.ts } as const;
+    const panel = renderPage(store, view);
+    expect(panel).toContain(`e.key==="Escape"`);
+    expect(panel).toContain(`location.href="/c/C0GEN"`);
+    const full = renderPage(store, view, { threadView: "full" });
+    expect(full).toContain(`e.key==="Escape"`);
+    expect(renderPage(store, view, { screenshot: true })).not.toContain("Escape");
+  });
+
+  test("composer posts to /mock/messages from the channel and the thread", () => {
+    const { store, channel, human } = workspace();
+    const channelHtml = renderPage(store, { kind: "channel", channel: channel.id });
+    expect(channelHtml).toContain(`<div class="sm-composer" data-channel="C0GEN">`);
+    expect(channelHtml).toContain(`<select class="sm-composer-user"`);
+    expect(channelHtml).toContain(`<option value="U0ALICE" selected>Alice Example</option>`);
+    // Bots never appear in the composer.
+    expect(channelHtml).not.toContain(`<option value="U0BOT"`);
+    expect(channelHtml).toContain(`<textarea class="sm-composer-text"`);
+    expect(channelHtml).toContain("Message #general");
+    expect(channelHtml).toContain("Enter to send, Shift+Enter for a new line, @name to mention");
+    expect(channelHtml).toContain(`fetch("/mock/messages"`);
+
+    const threadHtml = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
+    expect(threadHtml).toContain(
+      `<div class="sm-composer" data-channel="C0GEN" data-thread="${human.ts}">`,
+    );
+    expect(threadHtml).toContain("Reply in thread");
+
+    const fullHtml = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { threadView: "full" },
+    );
+    expect(fullHtml).toContain(`data-thread="${human.ts}"`);
+  });
+
+  test("screenshot pages have no composer", () => {
+    const { store, channel, human } = workspace();
+    const shotChannel = renderPage(
+      store,
+      { kind: "channel", channel: channel.id },
+      { screenshot: true },
+    );
+    const shotThread = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { screenshot: true },
+    );
+    for (const html of [shotChannel, shotThread]) {
+      expect(html).not.toContain(`class="sm-composer"`);
+      expect(html).not.toContain("<textarea");
+      expect(html).not.toContain("<script>");
+    }
+  });
 });

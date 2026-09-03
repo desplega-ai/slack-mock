@@ -3,7 +3,7 @@
 // Chrome or opened directly in a browser while debugging a test.
 
 import type { Store } from "../store.ts";
-import type { SlackChannel, SlackFile, SlackMessage } from "../types.ts";
+import type { SlackChannel, SlackFile, SlackMessage, SlackUser } from "../types.ts";
 import { renderAttachments, renderBlocks } from "./blocks.ts";
 import {
   displayName,
@@ -28,7 +28,13 @@ export interface RenderOptions {
   connections?: number;
   /** Auto-refresh interval in seconds (omit for none). */
   refreshSec?: number;
+  /** CSS width of the thread side panel. Default "50%", never below 360px. */
+  panelWidth?: string;
+  /** "panel" (default) shows the thread beside the channel, "full" shows it alone. */
+  threadView?: "panel" | "full";
 }
+
+const DEFAULT_PANEL_WIDTH = "50%";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -57,9 +63,10 @@ a:hover{text-decoration:underline}
 .sm-side-team{display:block;font-weight:400;font-size:12px;color:#bda9bd}
 .sm-side-h{font-size:13px;color:#bda9bd;padding:10px 16px 4px}
 .sm-side a{display:block;color:#d9d0d9;padding:3px 16px;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sm-side a:hover{background:#350d36;text-decoration:none}
-.sm-side a.sm-active{background:#1164a3;color:#fff}
-.sm-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.sm-side a:hover{background:#522653;color:#fff;text-decoration:none}
+.sm-side a.sm-active,.sm-side a.sm-active:hover{background:#1164a3;color:#fff}
+.sm-side-title a:hover{background:none;text-decoration:underline}
+.sm-main{flex:1;min-width:280px;display:flex;flex-direction:column;overflow:hidden}
 .sm-shot{width:760px;padding:16px;background:#fff}
 .sm-top{border-bottom:1px solid #e8e8e8;padding:12px 20px;display:flex;align-items:baseline;gap:12px;flex:none}
 .sm-top h1{font-size:18px;font-weight:900;margin:0}
@@ -71,19 +78,36 @@ a:hover{text-decoration:underline}
 .sm-shot .sm-page{padding:0}
 .sm-shot .sm-top{padding:0 0 10px;margin-bottom:8px}
 
-.sm-panel{width:420px;flex:none;display:flex;flex-direction:column;border-left:1px solid #e8e8e8;background:#fff;overflow:hidden}
-.sm-panel-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid #e8e8e8;flex:none}
+.sm-panel{width:var(--sm-panel-w,50%);min-width:360px;flex:0 1 auto;display:flex;flex-direction:column;border-left:1px solid #e8e8e8;background:#fff;overflow:hidden}
+.sm-panel-top{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid #e8e8e8;flex:none}
+.sm-panel-heading{flex:1;min-width:0}
 .sm-panel-title{font-size:18px;font-weight:900;margin:0;line-height:22px}
 .sm-panel-sub{font-size:13px;color:#616061}
-.sm-panel-close{font-size:20px;line-height:22px;color:#616061;padding:0 6px;border-radius:4px;flex:none}
-.sm-panel-close:hover{background:#f0f0f0;color:#1d1c1d;text-decoration:none}
+.sm-panel-close,.sm-panel-expand{font-size:16px;line-height:22px;color:#616061;padding:0 6px;border-radius:4px;flex:none}
+.sm-panel-close{font-size:20px}
+.sm-panel-close:hover,.sm-panel-expand:hover{background:#f0f0f0;color:#1d1c1d;text-decoration:none}
 .sm-panel-back{display:none;padding:8px 16px;font-size:13px;font-weight:700;border-bottom:1px solid #e8e8e8;flex:none}
 .sm-panel-body{flex:1;overflow-y:auto;padding:12px 16px 32px}
+.sm-composer{flex:none;border-top:1px solid #e8e8e8;padding:10px 20px 12px;background:#fff}
+.sm-panel .sm-composer{padding:10px 16px 12px}
+.sm-composer-box{border:1px solid #bbb;border-radius:8px;padding:8px 10px;background:#fff}
+.sm-composer-box:focus-within{border-color:#1264a3;box-shadow:0 0 0 1px #1264a3}
+.sm-composer-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.sm-composer-user{flex:0 1 auto;min-width:0;max-width:170px;border:0;border-radius:4px;background:#f0f0f0;color:#1d1c1d;font-family:inherit;font-size:12px;padding:4px 6px}
+.sm-composer-user:hover{background:#e8e8e8}
+.sm-composer-text{display:block;width:100%;border:0;outline:none;resize:vertical;font-family:inherit;font-size:15px;line-height:20px;color:#1d1c1d;padding:0;background:none}
+.sm-composer-send{flex:none;margin-left:auto;border:0;border-radius:4px;background:#007a5a;color:#fff;font-family:inherit;font-weight:700;font-size:13px;padding:6px 14px;cursor:pointer}
+.sm-composer-send:hover{background:#148567;color:#fff}
+.sm-composer-hint{font-size:11px;color:#616061;margin-top:4px}
+.sm-top-actions{margin-left:auto;display:flex;gap:12px;align-items:baseline;flex:none}
+.sm-top-actions a{font-size:13px;font-weight:700;color:#616061}
+.sm-top-actions a:hover{color:#1264a3}
 @media (max-width:900px){
   .sm-side{display:none}
   .sm-app-thread .sm-main{display:none}
-  .sm-panel{width:100%;border-left:0}
+  .sm-panel{width:100%;min-width:0;border-left:0}
   .sm-panel-back{display:block}
+  .sm-panel-expand{display:none}
 }
 
 .sm-daydiv{display:flex;align-items:center;gap:10px;margin:14px 0 8px}
@@ -134,9 +158,11 @@ a:hover{text-decoration:underline}
 .sm-hr{border:0;border-top:1px solid #ddd;margin:10px 0}
 .sm-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .sm-btn{display:inline-block;border:1px solid #bbb;border-radius:4px;padding:6px 12px;font-size:14px;font-weight:700;color:#1d1c1d;background:#fff;line-height:16px}
-.sm-btn:hover{text-decoration:none;background:#f8f8f8}
+.sm-btn:hover{text-decoration:none;background:#f8f8f8;color:#1d1c1d}
 .sm-btn-primary{background:#007a5a;border-color:#007a5a;color:#fff}
+.sm-btn-primary:hover{background:#148567;border-color:#148567;color:#fff}
 .sm-btn-danger{background:#e01e5a;border-color:#e01e5a;color:#fff}
+.sm-btn-danger:hover{background:#c31f4c;border-color:#c31f4c;color:#fff}
 .sm-btn-confirm{margin-left:6px;opacity:.7;font-weight:400}
 .sm-select{display:inline-flex;align-items:center;gap:6px;border:1px solid #bbb;border-radius:4px;padding:6px 10px;font-size:14px;color:#1d1c1d;background:#fff;line-height:16px}
 .sm-select-caret{color:#616061;font-size:12px}
@@ -176,9 +202,12 @@ a:hover{text-decoration:underline}
 
 .sm-reactions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .sm-reaction{display:inline-flex;align-items:center;gap:5px;background:#f0f0f0;border:1px solid #f0f0f0;border-radius:12px;padding:1px 8px;font-size:12px;line-height:18px;color:#454245}
+.sm-reaction:hover{background:#e8f5fa;border-color:#1264a3;color:#1d1c1d}
 .sm-reaction-count{font-weight:700;font-size:12px}
+.sm-file-card:hover{background:#f8f8f8}
 
 .sm-replies{display:inline-flex;align-items:center;gap:8px;margin-top:4px;font-size:13px;font-weight:700;color:#1264a3}
+.sm-replies:hover{color:#0b4c81}
 .sm-replies-time{font-weight:400;color:#616061}
 .sm-empty{color:#616061;font-size:14px;padding:16px 0}
 
@@ -205,18 +234,46 @@ function ctxOf(store: Store): RenderContext {
   return { users: store.users, channels: store.channels, botUserId: store.bot.userId };
 }
 
-function query(opts: RenderOptions): string {
+/** A CSS width the page can trust, or the default. */
+function panelWidth(opts: RenderOptions): string {
+  const raw = (opts.panelWidth ?? "").trim();
+  return /^\d{1,4}(%|px|vw|rem)$/.test(raw) ? raw : DEFAULT_PANEL_WIDTH;
+}
+
+/** The `?panel=` form of a width: "60%" -> "60", "640px" -> "640px". */
+function panelParam(opts: RenderOptions): string {
+  const width = (opts.panelWidth ?? "").trim();
+  if (!/^\d{1,4}(%|px|vw|rem)$/.test(width) || width === DEFAULT_PANEL_WIDTH) return "";
+  return width.endsWith("%") ? width.slice(0, -1) : width;
+}
+
+/** Query string for links, carrying screenshot / refresh / panel / full. */
+function query(opts: RenderOptions, over: { full?: boolean } = {}): string {
   if (opts.screenshot) return "?screenshot";
-  if (opts.refreshSec) return `?refresh=${opts.refreshSec}`;
-  return "";
+  const parts: string[] = [];
+  if (opts.refreshSec) parts.push(`refresh=${opts.refreshSec}`);
+  const panel = panelParam(opts);
+  if (panel) parts.push(`panel=${panel}`);
+  if (over.full ?? opts.threadView === "full") parts.push("full");
+  return parts.length ? `?${parts.join("&")}` : "";
 }
 
+/** Channel pages have no thread, so they never carry `full`. */
 function channelHref(channelId: string, opts: RenderOptions): string {
-  return `/c/${encodeURIComponent(channelId)}${query(opts)}`;
+  return `/c/${encodeURIComponent(channelId)}${query(opts, { full: false })}`;
 }
 
-function threadHref(channelId: string, ts: string, opts: RenderOptions): string {
-  return `/c/${encodeURIComponent(channelId)}/t/${encodeURIComponent(ts)}${query(opts)}`;
+function homeHref(opts: RenderOptions): string {
+  return `/${query(opts, { full: false })}`;
+}
+
+function threadHref(
+  channelId: string,
+  ts: string,
+  opts: RenderOptions,
+  over: { full?: boolean } = {},
+): string {
+  return `/c/${encodeURIComponent(channelId)}/t/${encodeURIComponent(ts)}${query(opts, over)}`;
 }
 
 function pad(n: number): string {
@@ -421,33 +478,48 @@ function sidebar(store: Store, opts: RenderOptions, active?: string): string {
         `<a class="${c.id === active ? "sm-active" : ""}" href="${channelHref(c.id, opts)}">${escapeHtml(channelIcon(c))} ${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</a>`,
     )
     .join("");
-  return `<nav class="sm-side"><div class="sm-side-title"><a href="/${query(opts)}" style="color:#fff">${escapeHtml(store.team.name)}</a><span class="sm-side-team">${escapeHtml(store.team.id)} · slack-mock</span></div><div class="sm-side-h">Channels</div>${links}</nav>`;
+  return `<nav class="sm-side"><div class="sm-side-title"><a href="${homeHref(opts)}" style="color:#fff">${escapeHtml(store.team.name)}</a><span class="sm-side-team">${escapeHtml(store.team.id)} · slack-mock</span></div><div class="sm-side-h">Channels</div>${links}</nav>`;
 }
 
-function shell(
-  store: Store,
-  opts: RenderOptions,
-  title: string,
-  header: string,
-  main: string,
-  active?: string,
-  panel?: string,
-): string {
+interface ShellParts {
+  title: string;
+  header: string;
+  main: string;
+  /** Channel id to highlight in the sidebar. */
+  active?: string;
+  /** Thread side panel markup. */
+  panel?: string;
+  /** Composer pinned under the channel column. */
+  footer?: string;
+  /** Inline script appended to the body (never in screenshot mode). */
+  script?: string;
+}
+
+function shell(store: Store, opts: RenderOptions, parts: ShellParts): string {
   const refresh =
     opts.refreshSec && !opts.screenshot
       ? `<meta http-equiv="refresh" content="${Math.max(1, Math.floor(opts.refreshSec))}">`
       : "";
-  const head = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title>${refresh}<style>${CSS}</style></head>`;
+  const style = opts.screenshot ? "" : ` style="--sm-panel-w:${panelWidth(opts)}"`;
+  const head = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(parts.title)}</title>${refresh}<style>${CSS}</style></head>`;
   if (opts.screenshot) {
-    return `${head}<body><div class="sm-shot">${header}<div class="sm-page">${main}</div></div></body></html>`;
+    return `${head}<body><div class="sm-shot">${parts.header}<div class="sm-page">${parts.main}</div></div></body></html>`;
   }
-  const app = `sm-app${panel ? " sm-app-thread" : ""}`;
-  return `${head}<body><div class="${app}">${sidebar(store, opts, active)}<div class="sm-main">${header}<div class="sm-page">${main}</div></div>${panel ?? ""}</div></body></html>`;
+  const app = `sm-app${parts.panel ? " sm-app-thread" : ""}`;
+  return `${head}<body${style}><div class="${app}">${sidebar(store, opts, parts.active)}<div class="sm-main">${parts.header}<div class="sm-page">${parts.main}</div>${parts.footer ?? ""}</div>${parts.panel ?? ""}</div>${parts.script ?? ""}</body></html>`;
 }
 
-function topbar(title: string, sub: string, back?: string): string {
-  const backLink = back ? `<a class="sm-back" href="${back}">← Workspace</a>` : "";
-  return `<div class="sm-top">${backLink}<h1>${title}</h1>${sub ? `<div class="sm-sub">${sub}</div>` : ""}</div>`;
+interface BackLink {
+  href: string;
+  label: string;
+}
+
+function topbar(title: string, sub: string, back?: BackLink, actions?: string): string {
+  const backLink = back
+    ? `<a class="sm-back" href="${back.href}">${escapeHtml(back.label)}</a>`
+    : "";
+  const right = actions ? `<div class="sm-top-actions">${actions}</div>` : "";
+  return `<div class="sm-top">${backLink}<h1>${title}</h1>${sub ? `<div class="sm-sub">${sub}</div>` : ""}${right}</div>`;
 }
 
 // -------------------------------------------------------------------- views
@@ -490,13 +562,11 @@ ${
 <div class="sm-h2">Users</div>
 <table class="sm-table"><tr><th>Name</th><th>Real name</th><th>Email</th><th>Id</th><th></th></tr>${userRows}</table>`;
 
-  return shell(
-    store,
-    opts,
-    `${store.team.name} · slack-mock`,
-    topbar(escapeHtml(store.team.name), "slack-mock workspace"),
+  return shell(store, opts, {
+    title: `${store.team.name} · slack-mock`,
+    header: topbar(escapeHtml(store.team.name), "slack-mock workspace"),
     main,
-  );
+  });
 }
 
 /** Top-level messages plus this channel's ephemerals, in ts order. */
@@ -526,8 +596,45 @@ function channelColumn(
 
 function channelHeader(store: Store, opts: RenderOptions, channel: SlackChannel): string {
   const sub = [channel.topic.value, channel.purpose.value].filter(Boolean).join(" · ");
-  const back = opts.screenshot ? undefined : `/${query(opts)}`;
+  const back = opts.screenshot ? undefined : { href: homeHref(opts), label: "← Workspace" };
   return topbar(escapeHtml(channelLabel(store, channel)), escapeHtml(sub), back);
+}
+
+// ---------------------------------------------------------------- composer
+
+/** Human users, bots excluded: the composer posts as one of them. */
+function humanUsers(store: Store): SlackUser[] {
+  return [...store.users.values()].filter((u) => !u.is_bot && !u.deleted);
+}
+
+function composer(
+  store: Store,
+  opts: RenderOptions,
+  channel: SlackChannel,
+  threadTs?: string,
+): string {
+  if (opts.screenshot) return "";
+  const users = humanUsers(store);
+  if (!users.length) return "";
+  const options = users
+    .map(
+      (u, i) =>
+        `<option value="${escapeHtml(u.id)}"${i === 0 ? " selected" : ""}>${escapeHtml(u.real_name || u.name)}</option>`,
+    )
+    .join("");
+  const placeholder = threadTs ? "Reply in thread" : `Message ${channelLabel(store, channel)}`;
+  const thread = threadTs ? ` data-thread="${escapeHtml(threadTs)}"` : "";
+  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}><div class="sm-composer-box"><textarea class="sm-composer-text" rows="2" placeholder="${escapeHtml(placeholder)}"></textarea><div class="sm-composer-row"><select class="sm-composer-user" aria-label="Post as">${options}</select><button type="button" class="sm-composer-send">Send</button></div></div><div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention</div></div>`;
+}
+
+/** One inline script for both composers plus the Escape shortcut. */
+function threadScript(closeUrl?: string): string {
+  const esc = closeUrl
+    ? `document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!/^(TEXTAREA|INPUT|SELECT)$/.test(document.activeElement&&document.activeElement.tagName||""))location.href=${JSON.stringify(closeUrl)}});`
+    : "";
+  const send = `function smSend(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim();if(!text)return;var body={channel:box.dataset.channel,user:box.querySelector(".sm-composer-user").value,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}).then(function(){location.reload()}).catch(function(){t.disabled=false});}
+document.querySelectorAll(".sm-composer").forEach(function(box){box.querySelector(".sm-composer-send").addEventListener("click",function(){smSend(box)});box.querySelector(".sm-composer-text").addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();smSend(box)}})});`;
+  return `<script>${send}${esc}</script>`;
 }
 
 function channelView(store: Store, opts: RenderOptions, channelId: string): string {
@@ -535,14 +642,14 @@ function channelView(store: Store, opts: RenderOptions, channelId: string): stri
   const ctx = ctxOf(store);
   if (!channel) return notFound(store, opts, "Channel not found");
   const label = channelLabel(store, channel);
-  return shell(
-    store,
-    opts,
-    `${label} · slack-mock`,
-    channelHeader(store, opts, channel),
-    channelColumn(store, ctx, opts, channel),
-    channel.id,
-  );
+  return shell(store, opts, {
+    title: `${label} · slack-mock`,
+    header: channelHeader(store, opts, channel),
+    main: channelColumn(store, ctx, opts, channel),
+    active: channel.id,
+    footer: composer(store, opts, channel),
+    script: opts.screenshot ? "" : threadScript(),
+  });
 }
 
 function assistantPanel(store: Store, channelId: string, ts: string): string {
@@ -596,30 +703,53 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
       `Thread <span class="sm-muted">·</span> <a href="${channelHref(channel.id, opts)}">${escapeHtml(label)}</a>`,
       "",
     );
-    return shell(store, opts, `Thread · ${label}`, header, body, channel.id);
+    return shell(store, opts, {
+      title: `Thread · ${label}`,
+      header,
+      main: body,
+      active: channel.id,
+    });
   }
 
   const close = channelHref(channel.id, opts);
-  const panel = `<aside class="sm-panel"><div class="sm-panel-top"><div><h2 class="sm-panel-title">Thread</h2><div class="sm-panel-sub">${escapeHtml(label)}</div></div><a class="sm-panel-close" href="${close}" title="Close thread">×</a></div><a class="sm-panel-back" href="${close}">← ${escapeHtml(label)}</a><div class="sm-panel-body">${body}</div></aside>`;
-  return shell(
-    store,
-    opts,
-    `Thread · ${label}`,
-    channelHeader(store, opts, channel),
-    channelColumn(store, ctx, opts, channel, ts),
-    channel.id,
+  const title = `Thread · ${label}`;
+
+  if (opts.threadView === "full") {
+    const header = topbar(
+      `Thread <span class="sm-muted">·</span> ${escapeHtml(label)}`,
+      "",
+      { href: close, label: `← ${label}` },
+      `<a href="${threadHref(channel.id, ts, opts, { full: false })}" title="Show the channel beside the thread">Collapse to panel</a>`,
+    );
+    return shell(store, opts, {
+      title,
+      header,
+      main: body,
+      active: channel.id,
+      footer: composer(store, opts, channel, ts),
+      script: threadScript(close),
+    });
+  }
+
+  const expand = threadHref(channel.id, ts, opts, { full: true });
+  const panel = `<aside class="sm-panel"><div class="sm-panel-top"><div class="sm-panel-heading"><h2 class="sm-panel-title">Thread</h2><div class="sm-panel-sub">${escapeHtml(label)}</div></div><a class="sm-panel-expand" href="${expand}" title="Expand thread">⤢</a><a class="sm-panel-close" href="${close}" title="Close thread">×</a></div><a class="sm-panel-back" href="${close}">← ${escapeHtml(label)}</a><div class="sm-panel-body">${body}</div>${composer(store, opts, channel, ts)}</aside>`;
+  return shell(store, opts, {
+    title,
+    header: channelHeader(store, opts, channel),
+    main: channelColumn(store, ctx, opts, channel, ts),
+    active: channel.id,
     panel,
-  );
+    footer: composer(store, opts, channel),
+    script: threadScript(close),
+  });
 }
 
 function notFound(store: Store, opts: RenderOptions, message: string): string {
-  return shell(
-    store,
-    opts,
-    message,
-    topbar(escapeHtml(message), ""),
-    `<div class="sm-empty">${escapeHtml(message)}</div>`,
-  );
+  return shell(store, opts, {
+    title: message,
+    header: topbar(escapeHtml(message), ""),
+    main: `<div class="sm-empty">${escapeHtml(message)}</div>`,
+  });
 }
 
 export function renderPage(store: Store, view: View, opts: RenderOptions = {}): string {
