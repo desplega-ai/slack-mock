@@ -1,3 +1,5 @@
+export type { Frame, FramesOptions, FramesResult } from "./frames.ts";
+export { frames } from "./frames.ts";
 export { findChrome, screenshot } from "./screenshot.ts";
 export type {
   Fault,

@@ -3,7 +3,8 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { App } from "@slack/bolt";
-import { SlackMock } from "../src/index.ts";
+import { SlackMock, Store } from "../src/index.ts";
+import { parseJournal } from "../src/store.ts";
 import { appFor } from "./helpers.ts";
 
 test("JSONL restores users, channels, messages, and reactions", async () => {
@@ -53,4 +54,36 @@ test("a manifest configures bot identity, commands, and event subscriptions", as
   expect(mock.deliveries().some((delivery) => delivery.name === "message")).toBeTrue();
   await app.stop();
   await mock.stop();
+});
+
+test("replaying an array of changes gives the same state as replaying the file", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "slack-mock-")), "log.jsonl");
+  const mock = await SlackMock.start({ port: 0, dataFile: file });
+  const ask = await mock.postMessage({ channel: "general", user: "alice", text: "root" });
+  const reply = await mock.postMessage({
+    channel: "general",
+    user: "bob",
+    text: "reply",
+    thread_ts: ask.ts,
+  });
+  await mock.addReaction({ channel: "general", ts: ask.ts, name: "eyes", user: "bob" });
+  await mock.editMessage("general", reply.ts, "edited reply");
+  await mock
+    .postMessage({ channel: "general", user: "alice", text: "gone" })
+    .then((m) => mock.deleteMessage("general", m.ts));
+  await mock.stop();
+
+  const snapshot = (store: Store) =>
+    JSON.stringify({
+      users: [...store.users],
+      channels: [...store.channels],
+      messages: [...store.messages],
+      files: [...store.files],
+    });
+  const fromFile = new Store({ dataFile: file });
+  const changes = parseJournal(readFileSync(file, "utf8")).map((e) => e.change);
+  const fromArray = new Store({ replay: changes });
+  expect(fromArray.messages.get("C0GENERAL0")).toHaveLength(2);
+  expect(fromArray.messages.get("C0GENERAL0")?.[0]?.reply_count).toBe(1);
+  expect(snapshot(fromArray)).toBe(snapshot(fromFile));
 });

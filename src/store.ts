@@ -24,6 +24,8 @@ export class SlackApiError extends Error {
 export interface StoreOptions {
   /** Append every change as one JSON line to this file and replay it on start. */
   dataFile?: string;
+  /** Changes to apply on construction, as if read from `dataFile`. Nothing is written. */
+  replay?: Change[];
   teamId?: string;
   teamName?: string;
   teamDomain?: string;
@@ -70,6 +72,30 @@ export interface Page<T> {
   next_cursor: string;
 }
 
+/** One parsed journal line and its 1-based line number. */
+export interface JournalEntry {
+  line: number;
+  change: Change;
+}
+
+/** Parse a JSONL journal. Corrupt lines are skipped with a warning; blank lines are ignored. */
+export function parseJournal(text: string, source = "journal"): JournalEntry[] {
+  const entries: JournalEntry[] = [];
+  let line = 0;
+  for (const raw of text.split("\n")) {
+    line += 1;
+    if (!raw.trim()) continue;
+    try {
+      entries.push({ line, change: JSON.parse(raw) as Change });
+    } catch (e) {
+      console.warn(
+        `[slack-mock] skipping corrupt journal line ${line} in ${source}: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+  }
+  return entries;
+}
+
 /** In-memory Slack workspace with an optional append-only JSONL journal. */
 export class Store {
   readonly team: { id: string; name: string; domain: string };
@@ -112,7 +138,11 @@ export class Store {
       userToken: opts.userToken,
     };
     this.dataFile = opts.dataFile;
-    if (this.dataFile && existsSync(this.dataFile)) this.replay(this.dataFile);
+    if (this.dataFile && existsSync(this.dataFile))
+      this.replay(
+        parseJournal(readFileSync(this.dataFile, "utf8"), this.dataFile).map((e) => e.change),
+      );
+    if (opts.replay) this.replay(opts.replay);
     if (!this.users.has(this.bot.userId)) {
       this.addUser({
         id: this.bot.userId,
@@ -145,21 +175,10 @@ export class Store {
     for (const l of this.listeners) l(change);
   }
 
-  private replay(file: string): void {
+  private replay(changes: Change[]): void {
     this.replaying = true;
     try {
-      let lineNo = 0;
-      for (const line of readFileSync(file, "utf8").split("\n")) {
-        lineNo += 1;
-        if (!line.trim()) continue;
-        try {
-          this.applyReplayed(JSON.parse(line) as Change);
-        } catch (e) {
-          console.warn(
-            `[slack-mock] skipping corrupt journal line ${lineNo} in ${file}: ${e instanceof Error ? e.message : e}`,
-          );
-        }
-      }
+      for (const change of changes) this.applyReplayed(change);
     } finally {
       this.replaying = false;
     }

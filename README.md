@@ -72,6 +72,39 @@ What tests can do:
 The same operations exist over HTTP under `/mock/*` for use from another
 process (see `docs/design.md`).
 
+## Frames from a journal
+
+A run recorded with `dataFile` can be replayed into one PNG per event that touched a
+thread (or, without a thread, a channel): the view after each `message.add`,
+`message.update`, `message.delete`, `reaction.add` and `reaction.remove` line, in journal
+order, plus `final-thread.png` (a copy of the last frame) and `final-desktop.png` (the full
+UI with the thread panel, 1280x900). Nothing is served: the journal is replayed in memory and
+each page is screenshotted from a temp file by the same headless Chrome helper as
+`screenshot`. A `file.add` line carries no message, so a shared file first appears in the
+frame of the message that shares it.
+
+```bash
+slack-mock frames --journal run.jsonl --channel C0GENERAL0 --thread 1788518410.672000 --out ./frames
+#  5	message.add	/abs/frames/01-message.add.png
+#  6	reaction.add	/abs/frames/02-reaction.add.png
+#  ...
+#  final-thread=/abs/frames/final-thread.png
+#  final-desktop=/abs/frames/final-desktop.png
+```
+
+Leave out `--thread` for the channel view. `--manifest app.json` (bot display name),
+`--width`, `--height` and `--no-desktop` are optional. The same from code:
+
+```ts
+import { frames } from "@desplega.ai/slack-mock";
+
+const result = await frames({ journal: "run.jsonl", channel: "general", thread: ask.ts, out: "./frames" });
+// result.frames[1] = { index: 6, kind: "reaction.add", path: "/abs/frames/02-reaction.add.png" }
+// result.finalThread, result.finalDesktop
+```
+
+Stitch the PNGs into a GIF with ffmpeg if you want motion; the mock only produces frames.
+
 ## Slack behaviour that is modelled
 
 - Socket Mode: `apps.connections.open`, `hello`, envelopes for `events_api`,

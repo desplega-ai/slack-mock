@@ -17,6 +17,14 @@ export function findChrome(): string | undefined {
   return fromPath ?? undefined;
 }
 
+/** Like `findChrome`, but throws when no binary is found. */
+export function requireChrome(): string {
+  const chrome = findChrome();
+  if (!chrome)
+    throw new Error("no Chrome/Chromium binary found; set SLACK_MOCK_CHROME=/path/to/chrome");
+  return chrome;
+}
+
 export interface ScreenshotOptions {
   out: string;
   width?: number;
@@ -29,9 +37,7 @@ export interface ScreenshotOptions {
  * mock's pages drop their navigation chrome.
  */
 export async function screenshot(url: string, opts: ScreenshotOptions): Promise<string> {
-  const chrome = findChrome();
-  if (!chrome)
-    throw new Error("no Chrome/Chromium binary found; set SLACK_MOCK_CHROME=/path/to/chrome");
+  const chrome = requireChrome();
   const target = new URL(url);
   if (!target.searchParams.has("screenshot")) target.searchParams.set("screenshot", "1");
   const proc = Bun.spawn(

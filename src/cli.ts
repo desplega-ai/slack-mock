@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { parseArgs } from "node:util";
+import { frames } from "./frames.ts";
 import { screenshot } from "./screenshot.ts";
 import { SlackMock } from "./server.ts";
 
@@ -9,6 +10,11 @@ Usage:
   slack-mock serve [--port 4040] [--host 127.0.0.1] [--data ./data/slack.jsonl] [--manifest app.json]
                    [--no-seed] [--quiet] [--panel 50] [--auth user:pass] [--public-url https://mock.example.com]
   slack-mock screenshot <url> --out shot.png [--width 800] [--height 1000]
+  slack-mock frames --journal data.jsonl --channel C0GENERAL0 [--thread 1788516626.286000] --out ./frames
+                    [--manifest app.json] [--width 800] [--height 700] [--no-desktop]
+
+frames renders the thread (or, without --thread, the channel) as it looked after every journal
+line that touched it: one PNG per line, then final-thread.png and final-desktop.png.
 
 serve prints the env vars to give your bot (SLACK_BOT_TOKEN, SLACK_APP_TOKEN, SLACK_API_URL)
 and the URLs of the HTML views. Inject messages with the admin API, e.g.
@@ -82,6 +88,37 @@ async function main(argv: string[]): Promise<void> {
       height: Number(values.height),
     });
     console.log(out);
+    return;
+  }
+  if (command === "frames") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        journal: { type: "string" },
+        channel: { type: "string" },
+        thread: { type: "string" },
+        out: { type: "string" },
+        manifest: { type: "string" },
+        width: { type: "string", default: "800" },
+        height: { type: "string", default: "700" },
+        "no-desktop": { type: "boolean", default: false },
+      },
+    });
+    if (!values.journal || !values.channel || !values.out)
+      throw new Error("frames needs --journal, --channel and --out");
+    const result = await frames({
+      journal: values.journal,
+      channel: values.channel,
+      thread: values.thread,
+      out: values.out,
+      manifest: values.manifest,
+      width: Number(values.width),
+      height: Number(values.height),
+      desktop: !values["no-desktop"],
+    });
+    for (const f of result.frames) console.log(`${f.index}\t${f.kind}\t${f.path}`);
+    console.log(`final-thread=${result.finalThread}`);
+    if (result.finalDesktop) console.log(`final-desktop=${result.finalDesktop}`);
     return;
   }
   console.log(USAGE);

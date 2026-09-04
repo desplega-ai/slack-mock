@@ -40,7 +40,8 @@ written by parallel research agents and verified against the installed
 | `src/body.ts` | request parsing: form-urlencoded (with JSON-stringified `blocks`/`metadata`/...), JSON, multipart |
 | `src/render/` | HTML pages, mrkdwn to HTML, Block Kit to HTML |
 | `src/screenshot.ts` | headless Chrome PNG capture |
-| `src/cli.ts` | `slack-mock serve` and `slack-mock screenshot` |
+| `src/frames.ts` | `frames()`: one PNG per journal line that touched a thread or channel, replayed in memory |
+| `src/cli.ts` | `slack-mock serve`, `slack-mock screenshot` and `slack-mock frames` |
 
 ## Decisions
 
@@ -72,6 +73,10 @@ written by parallel research agents and verified against the installed
 - **Metadata gating.** `conversations.history/replies` only return
   `metadata` with `include_all_metadata=true`, which Bolt's assistant thread
   context store relies on.
+- **Frames replay in memory.** `frames()` builds a `Store` from the first N journal
+  lines (`replay` option, no prefix files), renders the page with `renderPage`, and
+  screenshots it from a temp `file://` URL. No server is started; Chrome is spawned
+  once per frame.
 
 ## Test-facing API (in-process)
 

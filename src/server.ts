@@ -45,6 +45,20 @@ export interface SlackManifest {
   settings?: { event_subscriptions?: { bot_events?: string[] } };
 }
 
+/** Read a manifest given as a path or an object. */
+export function loadManifest(
+  manifest: string | SlackManifest | undefined,
+): SlackManifest | undefined {
+  return typeof manifest === "string"
+    ? (JSON.parse(readFileSync(manifest, "utf8")) as SlackManifest)
+    : manifest;
+}
+
+/** The bot display name a manifest declares, if any. */
+export function manifestAppName(manifest: SlackManifest | undefined): string | undefined {
+  return manifest?.features?.bot_user?.display_name ?? manifest?.display_information?.name;
+}
+
 export interface SlackMockOptions extends StoreOptions {
   /** 0 picks a free port. */
   port?: number;
@@ -165,14 +179,8 @@ export class SlackMock {
   static Error = SlackApiError;
 
   constructor(opts: SlackMockOptions = {}) {
-    const manifest =
-      typeof opts.manifest === "string"
-        ? (JSON.parse(readFileSync(opts.manifest, "utf8")) as SlackManifest)
-        : opts.manifest;
-    const appName =
-      opts.appName ??
-      manifest?.features?.bot_user?.display_name ??
-      manifest?.display_information?.name;
+    const manifest = loadManifest(opts.manifest);
+    const appName = opts.appName ?? manifestAppName(manifest);
     this.opts = { ...opts, appName };
     this.log =
       typeof opts.log === "function"

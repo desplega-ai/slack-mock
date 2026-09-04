@@ -1,6 +1,6 @@
 {
   "name": "@desplega.ai/slack-mock",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Mock Slack server (Web API + Socket Mode) for end-to-end testing Slack bots",
   "type": "module",
   "license": "MIT",
