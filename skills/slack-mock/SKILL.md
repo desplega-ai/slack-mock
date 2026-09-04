@@ -98,6 +98,11 @@ hits slow command, action and view handlers.
   and `slack-mock screenshot <url> --out shot.png`. The UI has a composer with
   `@` autocomplete for manual poking.
 - `dataFile` / `--data` appends every change as JSONL and replays it on start.
+- `await frames({ journal: "run.jsonl", channel: "general", thread: ask.ts, out: "./frames" })`
+  (or `slack-mock frames --journal run.jsonl --channel C0GENERAL0 --thread <ts> --out ./frames`)
+  renders one PNG per journal line that touched the thread (`01-message.add.png`, ...), plus
+  `final-thread.png` and `final-desktop.png`. Leave out `thread` for the channel view. No server
+  is started; stitch the PNGs into a GIF with ffmpeg if you want motion.
 
 ## Recipe: agent-swarm end to end, no LLM, no Docker
 
@@ -113,7 +118,8 @@ hits slow command, action and view handlers.
    `GET /api/poll` as the lead (polling again mid-task looks like a crash), finish
    it with `POST /api/tasks/<id>/finish { status: "completed", output }`.
 6. Wait for the outcome message in the thread and the `white_check_mark`
-   reaction (the watcher ticks every 3s). Screenshot the thread.
+   reaction (the watcher ticks every 3s). Screenshot the thread, or record with
+   `dataFile` and run `frames()` on the journal for one PNG per step.
 
 The full version is `test/agent-swarm.e2e.test.ts` in the slack-mock repo.
 
