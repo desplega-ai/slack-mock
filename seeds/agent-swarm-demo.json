@@ -40,6 +40,20 @@
       "email": "priya@northwind.example",
       "title": "Ops",
       "tz": "Europe/Lisbon"
+    },
+    {
+      "id": "U0TARAS000",
+      "name": "taras",
+      "real_name": "Taras",
+      "title": "Co-founder",
+      "email": "taras@northwind.example"
+    },
+    {
+      "id": "U0EZE00000",
+      "name": "eze",
+      "real_name": "Eze",
+      "title": "Co-founder",
+      "email": "eze@northwind.example"
     }
   ],
   "channels": [

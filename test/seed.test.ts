@@ -13,7 +13,7 @@ afterAll(async () => {
 test("the shipped agent-swarm seed applies cleanly and is idempotent", () => {
   const seed = loadSeedFile("seeds/agent-swarm-demo.json");
   const first = applySeed(mock, seed);
-  expect(first).toEqual({ users: 5, channels: 6, messages: 10 });
+  expect(first).toEqual({ users: 7, channels: 6, messages: 10 });
 
   const ask = mock.store.channelByName("ask-the-swarm");
   expect(ask).toBeDefined();
@@ -35,6 +35,14 @@ test("the shipped agent-swarm seed applies cleanly and is idempotent", () => {
   expect(mock.store.user("U0BRUNO000").profile.title).toBe("Engineering");
   expect(mock.store.user("U0CHEN0000").profile.title).toBe("Support");
   expect(mock.store.user("U0PRIYA000").profile.title).toBe("Ops");
+  expect(mock.store.user("U0TARAS000").profile.title).toBe("Co-founder");
+  expect(mock.store.user("U0EZE00000").profile.title).toBe("Co-founder");
+  expect([...mock.store.users.values()].filter((user) => !user.is_bot)).toHaveLength(7);
+  for (const messages of mock.store.messages.values()) {
+    for (const message of messages) {
+      expect(["U0TARAS000", "U0EZE00000"]).not.toContain(message.user);
+    }
+  }
 
   const again = applySeed(mock, seed);
   expect(again.users).toBe(0);
