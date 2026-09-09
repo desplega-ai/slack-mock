@@ -249,8 +249,7 @@ a:hover{text-decoration:underline}
 .sm-message-actions button:disabled{opacity:.5;cursor:default}
 .sm-message-actions svg{width:18px;height:18px;flex:none}
 .sm-action-error{font-size:13px;color:#a12622;margin-top:6px}
-.sm-reaction-picker{width:300px;max-width:calc(100vw - 24px);max-height:calc(var(--sm-viewport-height,100dvh) - 24px);padding:16px;border:1px solid #ddd;border-radius:12px;color:#1d1c1d;box-shadow:0 8px 32px #0003}
-.sm-reaction-picker::backdrop{background:#0003}
+.sm-reaction-picker{position:fixed;inset:auto;top:0;left:0;margin:0;z-index:100;width:300px;max-width:calc(100vw - 24px);max-height:calc(var(--sm-viewport-height,100dvh) - 24px);padding:16px;border:1px solid #ddd;border-radius:12px;color:#1d1c1d;box-shadow:0 8px 32px #0003}
 .sm-reaction-picker-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .sm-reaction-picker h2{font-size:16px;margin:0}
 .sm-reaction-picker button{min-width:40px;min-height:40px;border:0;border-radius:6px;background:#fff;font:inherit;cursor:pointer}
@@ -520,7 +519,7 @@ function messageActions(m: SlackMessage, opts: RenderOptions): string {
   const thread = m.thread_ts ?? m.ts;
   const reactIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="12" r="8"/><path d="M7 14c2 3 6 3 8 0M8 9h.01M14 9h.01M20 2v6M17 5h6" stroke-linecap="round"/></svg>`;
   const replyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z" stroke-linejoin="round"/><path d="M7 9h10M7 13h6" stroke-linecap="round"/></svg>`;
-  return `<div class="sm-message-actions"><button type="button" class="sm-add-reaction" aria-label="Add reaction" title="Add reaction"${opts.writeGated ? " disabled" : ""}>${reactIcon}<span>React</span></button><a class="sm-reply-action" href="${threadHref(m.channel, thread, opts)}#reply" data-thread="${escapeHtml(thread)}" aria-label="Reply in thread" title="Reply in thread">${replyIcon}<span>Reply in thread</span></a></div><div class="sm-action-error" role="alert" hidden></div>`;
+  return `<div class="sm-message-actions"><button type="button" class="sm-add-reaction" aria-label="Add reaction" aria-haspopup="dialog" aria-controls="sm-reaction-picker" title="Add reaction"${opts.writeGated ? " disabled" : ""}>${reactIcon}<span>React</span></button><a class="sm-reply-action" href="${threadHref(m.channel, thread, opts)}#reply" data-thread="${escapeHtml(thread)}" aria-label="Reply in thread" title="Reply in thread">${replyIcon}<span>Reply in thread</span></a></div><div class="sm-action-error" role="alert" hidden></div>`;
 }
 
 function reactionPicker(): string {
@@ -544,7 +543,7 @@ function reactionPicker(): string {
         `<button type="button" data-reaction="${name}" aria-label="React with ${name.replaceAll("_", " ")}" title=":${name}:">${escapeHtml(emojiChar(name) ?? `:${name}:`)}</button>`,
     )
     .join("");
-  return `<dialog class="sm-reaction-picker" aria-labelledby="sm-reaction-title"><div class="sm-reaction-picker-head"><h2 id="sm-reaction-title">Add a reaction</h2><button type="button" class="sm-reaction-close" aria-label="Close reactions">✕</button></div><div class="sm-reaction-choices">${buttons}</div><div class="sm-action-error" role="alert" hidden></div></dialog>`;
+  return `<dialog class="sm-reaction-picker" id="sm-reaction-picker" aria-labelledby="sm-reaction-title"><div class="sm-reaction-picker-head"><h2 id="sm-reaction-title">Add a reaction</h2><button type="button" class="sm-reaction-close" aria-label="Close reactions">✕</button></div><div class="sm-reaction-choices">${buttons}</div><div class="sm-action-error" role="alert" hidden></div></dialog>`;
 }
 
 /** The mock serves url_private behind a token, so browser requests carry it in the query. */
@@ -920,8 +919,24 @@ function identity(){var id=currentIdentity;if(identityStorage)try{id=localStorag
 (function(){var url=null,name=null;try{url=new URL(location.href);name=url.searchParams.get("as")}catch(e){}if(url&&name!==null){var u=findIdentity(name,"name");if(u)setIdentity(u.id);url.searchParams.delete("as");var search=url.searchParams.toString();history.replaceState(null,"",url.pathname+(search?"?"+search:"")+url.hash)}})();
 (function(){var m=/[#&]presenter=([^&]+)/.exec(location.hash||"");if(m){setCred(btoa(decodeURIComponent(m[1])));history.replaceState(null,"",location.pathname+location.search)}})();
 function authHeaders(h){var c=cred();if(c)h.authorization="Basic "+c;return h}
-var reactionDialog=document.querySelector(".sm-reaction-picker"),reactionTarget=null,reactionBusy=false;
-function closeReactions(){if(reactionDialog&&reactionDialog.open)reactionDialog.close();reactionTarget=null}
+var reactionDialog=document.querySelector(".sm-reaction-picker"),reactionTarget=null,reactionScope=null,reactionBusy=false;
+function closeReactions(restoreFocus){var button=reactionTarget&&reactionTarget.querySelector(".sm-add-reaction");if(reactionDialog&&reactionDialog.open)reactionDialog.close();reactionTarget=null;reactionScope=null;if(restoreFocus&&button&&button.isConnected&&!button.disabled)button.focus({preventScroll:true})}
+function findMessageElement(scope,ts){var found=null;if(scope)scope.querySelectorAll(".sm-msg[data-ts]").forEach(function(message){if(message.dataset.ts===ts)found=message});return found}
+function positionReactions(){
+ if(!reactionDialog||!reactionDialog.open||!reactionTarget)return;
+ if(!reactionTarget.isConnected){reactionTarget=findMessageElement(reactionScope,reactionTarget.dataset.ts);if(!reactionTarget){closeReactions();return}}
+ var button=reactionTarget.querySelector(".sm-add-reaction"),anchor=button.getBoundingClientRect(),v=window.visualViewport,left=v?v.offsetLeft:0,top=v?v.offsetTop:0,width=v?v.width:innerWidth,height=v?v.height:innerHeight,scope=reactionScope.getBoundingClientRect(),pad=12,gap=8;
+ if(anchor.bottom<=Math.max(top,scope.top)||anchor.top>=Math.min(top+height,scope.bottom)){closeReactions();return}
+ reactionDialog.style.maxWidth=Math.max(0,width-pad*2)+"px";reactionDialog.style.maxHeight=Math.max(0,height-pad*2)+"px";
+ var rect=reactionDialog.getBoundingClientRect(),x=Math.max(left+pad,Math.min(anchor.right-rect.width,left+width-rect.width-pad)),y=anchor.bottom+gap;
+ if(y+rect.height>top+height-pad)y=anchor.top-rect.height-gap;
+ reactionDialog.style.left=x+"px";reactionDialog.style.top=Math.max(top+pad,Math.min(y,top+height-rect.height-pad))+"px";
+}
+document.addEventListener("scroll",function(e){if(!reactionDialog.contains(e.target))positionReactions()},true);
+addEventListener("resize",positionReactions);
+if(window.visualViewport){window.visualViewport.addEventListener("resize",positionReactions);window.visualViewport.addEventListener("scroll",positionReactions)}
+document.addEventListener("pointerdown",function(e){if(reactionDialog.open&&!reactionDialog.contains(e.target)&&!e.target.closest(".sm-add-reaction"))closeReactions()});
+document.addEventListener("focusin",function(e){if(reactionDialog.open&&!reactionDialog.contains(e.target)&&(!reactionTarget||e.target!==reactionTarget.querySelector(".sm-add-reaction")))closeReactions()});
 function hasReaction(button,user){return JSON.parse(button.dataset.users||"[]").indexOf(user)!==-1}
 function reactionUi(root){var u=identity(),locked=(GATED&&!cred())||!u;(root||document).querySelectorAll(".sm-add-reaction,.sm-reaction[data-reaction],.sm-reaction-choices button").forEach(function(button){button.disabled=locked||reactionBusy;if(button.classList.contains("sm-reaction")){var mine=Boolean(u&&hasReaction(button,u.id)),count=button.querySelector(".sm-reaction-count").textContent;button.setAttribute("aria-pressed",String(mine));button.setAttribute("aria-label",(mine?"Remove":"Add")+" :"+button.dataset.reaction+": reaction, "+count+" "+(count==="1"?"person":"people")+" reacted")}});if(locked)closeReactions()}
 function identityUi(){var u=identity();document.querySelectorAll(".sm-identity").forEach(function(chip){chip.hidden=GATED&&!cred();if(!u)return;var av=chip.querySelector("summary .sm-identity-avatar"),name=chip.querySelector(".sm-identity-name"),summary=chip.querySelector("summary");if(av){av.textContent=u.initials;av.style.backgroundColor=u.color}if(name)name.textContent=u.real;if(summary)summary.setAttribute("aria-label","Posting as "+u.real);chip.querySelectorAll("[data-user]").forEach(function(button){if(button.dataset.user===u.id)button.setAttribute("aria-current","true");else button.removeAttribute("aria-current")})});reactionUi()}
@@ -929,13 +944,17 @@ function lockUi(){document.querySelectorAll(".sm-composer").forEach(function(box
 function signIn(box){if(!box)return;var u=box.querySelector(".sm-lock-user").value.trim(),p=box.querySelector(".sm-lock-pass").value,err=box.querySelector(".sm-err");if(!u){err.textContent="Enter the presenter user";return}var c=btoa(u+":"+p);err.textContent="";fetch("/mock/presenter",{headers:{authorization:"Basic "+c}}).then(function(r){if(!r.ok)throw new Error(r.status===401||r.status===403?"Wrong user or password":"Sign-in failed ("+r.status+")");setCred(c);lockUi();box.querySelector(".sm-composer-text").focus()}).catch(function(e){err.textContent=e.message})}
 document.addEventListener("click",function(e){var pick=e.target.closest(".sm-identity-list button");if(pick){setIdentity(pick.dataset.user);identityUi();pick.closest(".sm-identity").open=false;return}if(!e.target.closest(".sm-identity"))document.querySelectorAll(".sm-identity[open]").forEach(function(chip){chip.open=false});var out=e.target.closest(".sm-lock-out");if(out){e.preventDefault();setCred("");lockUi();return}var go=e.target.closest(".sm-lock-go");if(go)signIn(go.closest(".sm-composer"))});
 document.addEventListener("keydown",function(e){if(e.key!=="Escape")return;var chip=document.querySelector(".sm-identity[open]");if(!chip)return;e.preventDefault();e.stopImmediatePropagation();chip.open=false;chip.querySelector("summary").focus()});
-document.addEventListener("keydown",function(e){if(e.key==="Escape"&&reactionDialog&&reactionDialog.open){e.preventDefault();e.stopImmediatePropagation();closeReactions()}});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&reactionDialog&&reactionDialog.open){e.preventDefault();e.stopImmediatePropagation();closeReactions(true)}});
 document.addEventListener("keydown",function(e){var c=e.target.classList;if(e.key==="Enter"&&c&&(c.contains("sm-lock-pass")||c.contains("sm-lock-user"))){e.preventDefault();signIn(e.target.closest(".sm-composer"))}});
 addEventListener("storage",function(e){if(e.key===IK){currentIdentity=e.newValue||"";identityUi()}});
 lockUi();
 var pending=null;
 function refresh(){if(pending)return;pending=setTimeout(function(){pending=null;fetch(location.href,{headers:{accept:"text/html"},credentials:"same-origin"}).then(function(r){return r.ok?r.text():Promise.reject(r.status)}).then(apply).catch(function(){reactionUi()})},120)}
-function apply(html){var doc=new DOMParser().parseFromString(html,"text/html");reactionUi();reactionUi(doc);[".sm-side",".sm-channel-switch",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});identityUi();if(doc.title)document.title=doc.title}
+function apply(html){
+ var doc=new DOMParser().parseFromString(html,"text/html"),opener=document.activeElement,focusedMessage=opener&&opener.classList.contains("sm-add-reaction")?opener.closest(".sm-msg"):null,focusedScope=focusedMessage&&focusedMessage.closest(".sm-page,.sm-panel-body");
+ reactionUi();reactionUi(doc);[".sm-side",".sm-channel-switch",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});identityUi();positionReactions();if(doc.title)document.title=doc.title;
+ if(focusedMessage&&!opener.isConnected){var message=findMessageElement(focusedScope,focusedMessage.dataset.ts);if(message)message.querySelector(".sm-add-reaction").focus({preventScroll:true})}
+}
 if(LIVE&&window.EventSource){
  var box0=document.querySelector(".sm-composer"),pm=/^\\/c\\/([^/]+)/.exec(location.pathname),chan=box0?box0.dataset.channel:(pm?decodeURIComponent(pm[1]):null);
  if(chan){
@@ -955,13 +974,13 @@ function react(message,name){
  fetch("/mock/reactions",{method:"POST",headers:authHeaders({"content-type":"application/json"}),body:JSON.stringify({channel:message.dataset.channel,ts:message.dataset.ts,name:name,user:u.id,action:action})}).then(function(r){
   if(r.status===401||r.status===403){setCred("");lockUi();throw new Error("Sign in to react.")}
   return r.json().then(function(data){if(!r.ok&&data.error!=="already_reacted"&&data.error!=="no_reaction")throw new Error("Could not save the reaction. Try again.")})
- }).then(function(){reactionBusy=false;closeReactions();refresh()}).catch(function(e){reactionBusy=false;reactionUi();if(err){if(err.closest("dialog")&&!reactionDialog.open)err=message.querySelector(".sm-action-error");err.textContent=e.message==="Sign in to react."?e.message:"Could not save the reaction. Try again.";err.hidden=false}})
+ }).then(function(){reactionBusy=false;reactionUi();closeReactions(true);refresh()}).catch(function(e){reactionBusy=false;reactionUi();if(err){if(err.closest("dialog")&&!reactionDialog.open)err=message.querySelector(".sm-action-error");err.textContent=e.message==="Sign in to react."?e.message:"Could not save the reaction. Try again.";err.hidden=false;positionReactions()}})
 }
 function focusReply(){var box=document.querySelector(".sm-composer[data-thread]");if(!box)return;var target=box.querySelector(".sm-composer-text");if(target.disabled)target=box.querySelector(".sm-lock-user");if(target)target.focus()}
 document.addEventListener("click",function(e){
- var add=e.target.closest(".sm-add-reaction");if(add&&!add.disabled){reactionTarget=add.closest(".sm-msg");var err=reactionDialog.querySelector(".sm-action-error");err.hidden=true;err.textContent="";reactionDialog.showModal();return}
+ var add=e.target.closest(".sm-add-reaction");if(add&&!add.disabled){var message=add.closest(".sm-msg");if(reactionDialog.open&&reactionTarget===message){closeReactions(true);return}reactionTarget=message;reactionScope=message.closest(".sm-page,.sm-panel-body");var err=reactionDialog.querySelector(".sm-action-error");err.hidden=true;err.textContent="";if(!reactionDialog.open)reactionDialog.show();positionReactions();return}
  var choice=e.target.closest("button[data-reaction]");if(choice&&!choice.disabled){react(choice.closest(".sm-reaction-picker")?reactionTarget:choice.closest(".sm-msg"),choice.dataset.reaction);return}
- if(e.target===reactionDialog||e.target.closest(".sm-reaction-close")){closeReactions();return}
+ if(e.target.closest(".sm-reaction-close")){closeReactions(true);return}
  var reply=e.target.closest(".sm-reply-action"),box=document.querySelector(".sm-composer[data-thread]");if(reply&&box&&box.dataset.thread===reply.dataset.thread&&box.dataset.channel===reply.closest(".sm-msg").dataset.channel){e.preventDefault();focusReply()}
 });
 if(location.hash==="#reply")focusReply();

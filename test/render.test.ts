@@ -630,6 +630,7 @@ describe("renderPage", () => {
     expect(html).toContain(`href="/c/${channel.id}/t/${message.ts}#reply"`);
     expect(html).toContain('aria-label="Reply in thread"');
     expect(html).toContain('class="sm-add-reaction"');
+    expect(html).toContain('aria-haspopup="dialog" aria-controls="sm-reaction-picker"');
     expect(html).toContain('<dialog class="sm-reaction-picker"');
   });
 

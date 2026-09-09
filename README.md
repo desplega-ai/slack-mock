@@ -50,7 +50,7 @@ Open `/c/support?as=taras` to select Taras. The page removes `as` from the URL a
 Public workspaces show the chip after presenter sign-in.
 Optional user status text appears beside names in the users table and the chip's user list.
 Each message offers **React** and **Reply in thread**, including messages without replies.
-Choose an emoji to react, or select an existing reaction to add or remove your own.
+Choose an emoji from the picker beside the message, or select an existing reaction to add or remove your own.
 Reactions use the identity in the chip and require presenter sign-in in public workspaces.
 Below 700px, the sidebar becomes a top bar with a channel switcher.
 Threads fill the phone width. The composer follows the visible viewport and includes padding for the iOS home bar.
