@@ -29,6 +29,12 @@ test("the shipped agent-swarm seed applies cleanly and is idempotent", () => {
   const general = mock.messages("general");
   expect(general[0]?.bot_id).toBe(mock.bot.botId);
   expect(general[1]?.user).toBe("U0DANA0000");
+  // Every seeded human user carries a job title.
+  expect(mock.store.user("U0DANA0000").profile.title).toBe("Head of Sales");
+  expect(mock.store.user("U0ALICE000").profile.title).toBe("Product");
+  expect(mock.store.user("U0BRUNO000").profile.title).toBe("Engineering");
+  expect(mock.store.user("U0CHEN0000").profile.title).toBe("Support");
+  expect(mock.store.user("U0PRIYA000").profile.title).toBe("Ops");
 
   const again = applySeed(mock, seed);
   expect(again.users).toBe(0);
