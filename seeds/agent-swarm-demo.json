@@ -5,6 +5,7 @@
       "name": "dana",
       "real_name": "Dana Okafor",
       "email": "dana@northwind.example",
+      "title": "Head of Sales",
       "is_admin": true,
       "tz": "Europe/Madrid"
     },
@@ -13,6 +14,7 @@
       "name": "alice",
       "real_name": "Alice Novak",
       "email": "alice@northwind.example",
+      "title": "Product",
       "tz": "Europe/Berlin"
     },
     {
@@ -20,6 +22,7 @@
       "name": "bruno",
       "real_name": "Bruno Reyes",
       "email": "bruno@northwind.example",
+      "title": "Engineering",
       "tz": "Europe/Madrid"
     },
     {
@@ -27,6 +30,7 @@
       "name": "chen",
       "real_name": "Chen Wu",
       "email": "chen@northwind.example",
+      "title": "Support",
       "tz": "Europe/London"
     },
     {
@@ -34,6 +38,7 @@
       "name": "priya",
       "real_name": "Priya Nair",
       "email": "priya@northwind.example",
+      "title": "Ops",
       "tz": "Europe/Lisbon"
     }
   ],

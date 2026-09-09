@@ -87,3 +87,12 @@ test("replaying an array of changes gives the same state as replaying the file",
   expect(fromArray.messages.get("C0GENERAL0")?.[0]?.reply_count).toBe(1);
   expect(snapshot(fromArray)).toBe(snapshot(fromFile));
 });
+
+test("addUser stores profile.title when given and omits it otherwise", () => {
+  const store = new Store();
+  const withTitle = store.addUser({ id: "U1", name: "person", title: "Support Engineer" });
+  expect(withTitle.profile.title).toBe("Support Engineer");
+
+  const withoutTitle = store.addUser({ id: "U2", name: "other" });
+  expect(withoutTitle.profile.title).toBeUndefined();
+});

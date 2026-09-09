@@ -611,7 +611,7 @@ function indexView(store: Store, opts: RenderOptions): string {
   const userRows = [...store.users.values()]
     .map(
       (u) =>
-        `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.real_name)}</td><td class="sm-muted">${escapeHtml(u.profile.email ?? "")}</td><td class="sm-muted">${u.id}</td><td>${u.is_bot ? `<span class="sm-tag">bot</span>` : ""}</td></tr>`,
+        `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.real_name)}</td><td class="sm-muted">${escapeHtml(u.profile.title ?? "")}</td><td class="sm-muted">${escapeHtml(u.profile.email ?? "")}</td><td class="sm-muted">${u.id}</td><td>${u.is_bot ? `<span class="sm-tag">bot</span>` : ""}</td></tr>`,
     )
     .join("");
 
@@ -623,7 +623,7 @@ ${
     : `<div class="sm-empty">No channels yet</div>`
 }
 <div class="sm-h2">Users</div>
-<table class="sm-table"><tr><th>Name</th><th>Real name</th><th>Email</th><th>Id</th><th></th></tr>${userRows}</table>`;
+<table class="sm-table"><tr><th>Name</th><th>Real name</th><th>Title</th><th>Email</th><th>Id</th><th></th></tr>${userRows}</table>`;
 
   return shell(store, opts, {
     title: `${store.team.name} · slack-mock`,

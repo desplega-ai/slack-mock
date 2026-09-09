@@ -19,6 +19,7 @@ export interface SlackUser {
     email?: string;
     image_72?: string;
     team: string;
+    title?: string;
   };
 }
 
