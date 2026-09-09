@@ -137,7 +137,7 @@ a:hover{text-decoration:underline}
 .sm-daydiv:before,.sm-daydiv:after{content:"";flex:1;height:1px;background:#e8e8e8}
 .sm-daydiv span{border:1px solid #e8e8e8;border-radius:12px;padding:2px 12px;font-size:13px;font-weight:700;color:#454245;background:#fff}
 
-.sm-msg{display:flex;gap:12px;padding:8px 8px;border-radius:6px}
+.sm-msg{position:relative;display:flex;gap:12px;padding:8px 8px;border-radius:6px}
 .sm-msg:hover{background:#f8f8f8}
 .sm-msg-eph{background:#fffbe6}
 .sm-msg-eph:hover{background:#fff7d1}
@@ -239,7 +239,25 @@ a:hover{text-decoration:underline}
 .sm-reactions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .sm-reaction{display:inline-flex;align-items:center;gap:5px;background:#f0f0f0;border:1px solid #f0f0f0;border-radius:12px;padding:1px 8px;font-size:12px;line-height:18px;color:#454245}
 .sm-reaction:hover{background:#e8f5fa;border-color:#1264a3;color:#1d1c1d}
+.sm-reaction[aria-pressed="true"]{background:#e8f5fa;border-color:#1264a3;color:#1264a3}
+.sm-reaction:disabled{cursor:default}
 .sm-reaction-count{font-weight:700;font-size:12px}
+.sm-message-actions{position:absolute;right:8px;top:-8px;display:flex;gap:2px;padding:3px;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 1px 4px #0001;opacity:0;z-index:2}
+.sm-msg:hover .sm-message-actions,.sm-msg:focus-within .sm-message-actions{opacity:1}
+.sm-message-actions button,.sm-message-actions a{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:32px;padding:4px 8px;border:0;border-radius:4px;background:#fff;color:#616061;font:inherit;font-size:12px;cursor:pointer;text-decoration:none}
+.sm-message-actions button:hover,.sm-message-actions a:hover{background:#f0f0f0;color:#1d1c1d}
+.sm-message-actions button:disabled{opacity:.5;cursor:default}
+.sm-message-actions svg{width:18px;height:18px;flex:none}
+.sm-action-error{font-size:13px;color:#a12622;margin-top:6px}
+.sm-reaction-picker{width:300px;max-width:calc(100vw - 24px);max-height:calc(var(--sm-viewport-height,100dvh) - 24px);padding:16px;border:1px solid #ddd;border-radius:12px;color:#1d1c1d;box-shadow:0 8px 32px #0003}
+.sm-reaction-picker::backdrop{background:#0003}
+.sm-reaction-picker-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sm-reaction-picker h2{font-size:16px;margin:0}
+.sm-reaction-picker button{min-width:40px;min-height:40px;border:0;border-radius:6px;background:#fff;font:inherit;cursor:pointer}
+.sm-reaction-picker button:hover,.sm-reaction-picker button:focus-visible{background:#f0f0f0}
+.sm-reaction-picker button:disabled{opacity:.5;cursor:default}
+.sm-reaction-choices{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.sm-reaction-choices button{font-size:24px}
 .sm-file-card:hover{background:#f8f8f8}
 
 .sm-replies{display:inline-flex;align-items:center;gap:8px;margin-top:4px;font-size:13px;font-weight:700;color:#1264a3}
@@ -276,6 +294,10 @@ a:hover{text-decoration:underline}
   .sm-identity-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sm-replies{flex-wrap:wrap}
   .sm-att-img,.sm-file-img,.sm-video-thumb,.sm-file-card{max-width:100%}
+}
+@media (max-width:699px),(hover:none),(pointer:coarse){
+  .sm-message-actions{position:static;opacity:1;justify-content:flex-start;gap:6px;margin-top:6px;padding:0;border:0;box-shadow:none;background:none}
+  .sm-message-actions button,.sm-message-actions a{min-height:40px;background:none}
 }
 @media (max-width:699px){
   html,body{overflow:hidden;overscroll-behavior:none}
@@ -471,7 +493,12 @@ function avatarHtml(m: SlackMessage, name: string): string {
   return `<div class="sm-avatar" style="background:${color}">${escapeHtml(initials(name))}</div>`;
 }
 
-function reactionsHtml(store: Store, m: SlackMessage): string {
+function reactionsHtml(
+  store: Store,
+  m: SlackMessage,
+  interactive: boolean,
+  locked: boolean,
+): string {
   if (!m.reactions?.length) return "";
   const chips = m.reactions.map((r) => {
     const who = r.users
@@ -481,9 +508,43 @@ function reactionsHtml(store: Store, m: SlackMessage): string {
       })
       .join(", ");
     const char = emojiChar(r.name) ?? `:${r.name}:`;
-    return `<span class="sm-reaction" title="${escapeHtml(who)}">${escapeHtml(char)}<span class="sm-reaction-count">${r.count}</span></span>`;
+    const content = `${escapeHtml(char)}<span class="sm-reaction-count">${r.count}</span>`;
+    return interactive
+      ? `<button type="button" class="sm-reaction" title="${escapeHtml(who)}" data-reaction="${escapeHtml(r.name)}" data-users="${escapeHtml(JSON.stringify(r.users))}" aria-label="Add :${escapeHtml(r.name)}: reaction, ${r.count} ${r.count === 1 ? "person" : "people"} reacted" aria-pressed="false"${locked ? " disabled" : ""}>${content}</button>`
+      : `<span class="sm-reaction" title="${escapeHtml(who)}">${content}</span>`;
   });
   return `<div class="sm-reactions">${chips.join("")}</div>`;
+}
+
+function messageActions(m: SlackMessage, opts: RenderOptions): string {
+  const thread = m.thread_ts ?? m.ts;
+  const reactIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="12" r="8"/><path d="M7 14c2 3 6 3 8 0M8 9h.01M14 9h.01M20 2v6M17 5h6" stroke-linecap="round"/></svg>`;
+  const replyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z" stroke-linejoin="round"/><path d="M7 9h10M7 13h6" stroke-linecap="round"/></svg>`;
+  return `<div class="sm-message-actions"><button type="button" class="sm-add-reaction" aria-label="Add reaction" title="Add reaction"${opts.writeGated ? " disabled" : ""}>${reactIcon}<span>React</span></button><a class="sm-reply-action" href="${threadHref(m.channel, thread, opts)}#reply" data-thread="${escapeHtml(thread)}" aria-label="Reply in thread" title="Reply in thread">${replyIcon}<span>Reply in thread</span></a></div><div class="sm-action-error" role="alert" hidden></div>`;
+}
+
+function reactionPicker(): string {
+  const names = [
+    "thumbsup",
+    "green_heart",
+    "eyes",
+    "white_check_mark",
+    "tada",
+    "rocket",
+    "star",
+    "thinking_face",
+    "sparkles",
+    "fire",
+    "raised_hands",
+    "clap",
+  ];
+  const buttons = names
+    .map(
+      (name) =>
+        `<button type="button" data-reaction="${name}" aria-label="React with ${name.replaceAll("_", " ")}" title=":${name}:">${escapeHtml(emojiChar(name) ?? `:${name}:`)}</button>`,
+    )
+    .join("");
+  return `<dialog class="sm-reaction-picker" aria-labelledby="sm-reaction-title"><div class="sm-reaction-picker-head"><h2 id="sm-reaction-title">Add a reaction</h2><button type="button" class="sm-reaction-close" aria-label="Close reactions">✕</button></div><div class="sm-reaction-choices">${buttons}</div><div class="sm-action-error" role="alert" hidden></div></dialog>`;
 }
 
 /** The mock serves url_private behind a token, so browser requests carry it in the query. */
@@ -526,6 +587,7 @@ function renderMessage(
   const name = authorName(store, m);
   const isApp = Boolean(m.bot_id);
   const blocks = Array.isArray(m.blocks) && m.blocks.length ? m.blocks : undefined;
+  const interactive = !opts.screenshot && !flags.ephemeral && humanUsers(store).length > 0;
   const body: string[] = [];
   if (m.streaming_state !== undefined) {
     // A streamed message (chat.startStream) keeps its Markdown body; the blocks handed to
@@ -538,7 +600,7 @@ function renderMessage(
   if (m.edited) body.push(`<div class="sm-edited">(edited)</div>`);
   if (m.attachments?.length) body.push(renderAttachments(m.attachments, ctx));
   body.push(filesHtml(m.files, store.bot.token));
-  body.push(reactionsHtml(store, m));
+  body.push(reactionsHtml(store, m, interactive, Boolean(opts.writeGated)));
   if (flags.ephemeral) body.push(`<div class="sm-eph-note">Only visible to you</div>`);
   if (flags.threadLink && m.reply_count) {
     const count = `${m.reply_count} ${m.reply_count === 1 ? "reply" : "replies"}`;
@@ -549,12 +611,13 @@ function renderMessage(
       `<a class="sm-replies" href="${threadHref(m.channel, m.thread_ts ?? m.ts, opts)}">${count}${last}</a>`,
     );
   }
+  if (interactive) body.push(messageActions(m, opts));
   const streaming =
     m.streaming_state === "in_progress"
       ? `<span class="sm-stream" title="streaming">•••</span>`
       : "";
   const open = flags.openTs && flags.openTs === m.ts ? " sm-msg-open" : "";
-  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}" data-ts="${escapeHtml(m.ts)}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
+  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}" data-ts="${escapeHtml(m.ts)}" data-channel="${escapeHtml(m.channel)}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
 }
 
 /**
@@ -857,17 +920,22 @@ function identity(){var id=currentIdentity;if(identityStorage)try{id=localStorag
 (function(){var url=null,name=null;try{url=new URL(location.href);name=url.searchParams.get("as")}catch(e){}if(url&&name!==null){var u=findIdentity(name,"name");if(u)setIdentity(u.id);url.searchParams.delete("as");var search=url.searchParams.toString();history.replaceState(null,"",url.pathname+(search?"?"+search:"")+url.hash)}})();
 (function(){var m=/[#&]presenter=([^&]+)/.exec(location.hash||"");if(m){setCred(btoa(decodeURIComponent(m[1])));history.replaceState(null,"",location.pathname+location.search)}})();
 function authHeaders(h){var c=cred();if(c)h.authorization="Basic "+c;return h}
-function identityUi(){var u=identity();document.querySelectorAll(".sm-identity").forEach(function(chip){chip.hidden=GATED&&!cred();if(!u)return;var av=chip.querySelector("summary .sm-identity-avatar"),name=chip.querySelector(".sm-identity-name"),summary=chip.querySelector("summary");if(av){av.textContent=u.initials;av.style.backgroundColor=u.color}if(name)name.textContent=u.real;if(summary)summary.setAttribute("aria-label","Posting as "+u.real);chip.querySelectorAll("[data-user]").forEach(function(button){if(button.dataset.user===u.id)button.setAttribute("aria-current","true");else button.removeAttribute("aria-current")})})}
+var reactionDialog=document.querySelector(".sm-reaction-picker"),reactionTarget=null,reactionBusy=false;
+function closeReactions(){if(reactionDialog&&reactionDialog.open)reactionDialog.close();reactionTarget=null}
+function hasReaction(button,user){return JSON.parse(button.dataset.users||"[]").indexOf(user)!==-1}
+function reactionUi(root){var u=identity(),locked=(GATED&&!cred())||!u;(root||document).querySelectorAll(".sm-add-reaction,.sm-reaction[data-reaction],.sm-reaction-choices button").forEach(function(button){button.disabled=locked||reactionBusy;if(button.classList.contains("sm-reaction")){var mine=Boolean(u&&hasReaction(button,u.id)),count=button.querySelector(".sm-reaction-count").textContent;button.setAttribute("aria-pressed",String(mine));button.setAttribute("aria-label",(mine?"Remove":"Add")+" :"+button.dataset.reaction+": reaction, "+count+" "+(count==="1"?"person":"people")+" reacted")}});if(locked)closeReactions()}
+function identityUi(){var u=identity();document.querySelectorAll(".sm-identity").forEach(function(chip){chip.hidden=GATED&&!cred();if(!u)return;var av=chip.querySelector("summary .sm-identity-avatar"),name=chip.querySelector(".sm-identity-name"),summary=chip.querySelector("summary");if(av){av.textContent=u.initials;av.style.backgroundColor=u.color}if(name)name.textContent=u.real;if(summary)summary.setAttribute("aria-label","Posting as "+u.real);chip.querySelectorAll("[data-user]").forEach(function(button){if(button.dataset.user===u.id)button.setAttribute("aria-current","true");else button.removeAttribute("aria-current")})});reactionUi()}
 function lockUi(){document.querySelectorAll(".sm-composer").forEach(function(box){var locked=GATED&&!cred(),lock=box.querySelector(".sm-composer-lock"),ta=box.querySelector(".sm-composer-text"),btn=box.querySelector(".sm-composer-send"),state=box.querySelector(".sm-lock-state");if(lock)lock.hidden=!locked;ta.disabled=locked;btn.disabled=locked;ta.placeholder=locked?"Sign in to post":(ta.dataset.placeholder||"");if(state)state.innerHTML=GATED&&!locked?' · signed in · <a href="#" class="sm-lock-out">Sign out</a>':""});identityUi()}
 function signIn(box){if(!box)return;var u=box.querySelector(".sm-lock-user").value.trim(),p=box.querySelector(".sm-lock-pass").value,err=box.querySelector(".sm-err");if(!u){err.textContent="Enter the presenter user";return}var c=btoa(u+":"+p);err.textContent="";fetch("/mock/presenter",{headers:{authorization:"Basic "+c}}).then(function(r){if(!r.ok)throw new Error(r.status===401||r.status===403?"Wrong user or password":"Sign-in failed ("+r.status+")");setCred(c);lockUi();box.querySelector(".sm-composer-text").focus()}).catch(function(e){err.textContent=e.message})}
 document.addEventListener("click",function(e){var pick=e.target.closest(".sm-identity-list button");if(pick){setIdentity(pick.dataset.user);identityUi();pick.closest(".sm-identity").open=false;return}if(!e.target.closest(".sm-identity"))document.querySelectorAll(".sm-identity[open]").forEach(function(chip){chip.open=false});var out=e.target.closest(".sm-lock-out");if(out){e.preventDefault();setCred("");lockUi();return}var go=e.target.closest(".sm-lock-go");if(go)signIn(go.closest(".sm-composer"))});
 document.addEventListener("keydown",function(e){if(e.key!=="Escape")return;var chip=document.querySelector(".sm-identity[open]");if(!chip)return;e.preventDefault();e.stopImmediatePropagation();chip.open=false;chip.querySelector("summary").focus()});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&reactionDialog&&reactionDialog.open){e.preventDefault();e.stopImmediatePropagation();closeReactions()}});
 document.addEventListener("keydown",function(e){var c=e.target.classList;if(e.key==="Enter"&&c&&(c.contains("sm-lock-pass")||c.contains("sm-lock-user"))){e.preventDefault();signIn(e.target.closest(".sm-composer"))}});
 addEventListener("storage",function(e){if(e.key===IK){currentIdentity=e.newValue||"";identityUi()}});
 lockUi();
 var pending=null;
-function refresh(){if(pending)return;pending=setTimeout(function(){pending=null;fetch(location.href,{headers:{accept:"text/html"},credentials:"same-origin"}).then(function(r){return r.ok?r.text():Promise.reject(r.status)}).then(apply).catch(function(){})},120)}
-function apply(html){var doc=new DOMParser().parseFromString(html,"text/html");[".sm-side",".sm-channel-switch",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});identityUi();if(doc.title)document.title=doc.title}
+function refresh(){if(pending)return;pending=setTimeout(function(){pending=null;fetch(location.href,{headers:{accept:"text/html"},credentials:"same-origin"}).then(function(r){return r.ok?r.text():Promise.reject(r.status)}).then(apply).catch(function(){reactionUi()})},120)}
+function apply(html){var doc=new DOMParser().parseFromString(html,"text/html");reactionUi();reactionUi(doc);[".sm-side",".sm-channel-switch",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});identityUi();if(doc.title)document.title=doc.title}
 if(LIVE&&window.EventSource){
  var box0=document.querySelector(".sm-composer"),pm=/^\\/c\\/([^/]+)/.exec(location.pathname),chan=box0?box0.dataset.channel:(pm?decodeURIComponent(pm[1]):null);
  if(chan){
@@ -879,6 +947,24 @@ if(LIVE&&window.EventSource){
   es.onerror=function(){down=true;if(dot){dot.textContent="● reconnecting";dot.classList.add("sm-live-off")}};
  }
 }
+function react(message,name){
+ var u=identity();if(!message||!u||reactionBusy||(GATED&&!cred()))return;
+ var action="add";message.querySelectorAll(".sm-reaction[data-reaction]").forEach(function(button){if(button.dataset.reaction===name&&hasReaction(button,u.id))action="remove"});
+ var err=(reactionDialog&&reactionDialog.open?reactionDialog:message).querySelector(".sm-action-error");if(err){err.hidden=true;err.textContent=""}
+ reactionBusy=true;reactionUi();
+ fetch("/mock/reactions",{method:"POST",headers:authHeaders({"content-type":"application/json"}),body:JSON.stringify({channel:message.dataset.channel,ts:message.dataset.ts,name:name,user:u.id,action:action})}).then(function(r){
+  if(r.status===401||r.status===403){setCred("");lockUi();throw new Error("Sign in to react.")}
+  return r.json().then(function(data){if(!r.ok&&data.error!=="already_reacted"&&data.error!=="no_reaction")throw new Error("Could not save the reaction. Try again.")})
+ }).then(function(){reactionBusy=false;closeReactions();refresh()}).catch(function(e){reactionBusy=false;reactionUi();if(err){if(err.closest("dialog")&&!reactionDialog.open)err=message.querySelector(".sm-action-error");err.textContent=e.message==="Sign in to react."?e.message:"Could not save the reaction. Try again.";err.hidden=false}})
+}
+function focusReply(){var box=document.querySelector(".sm-composer[data-thread]");if(!box)return;var target=box.querySelector(".sm-composer-text");if(target.disabled)target=box.querySelector(".sm-lock-user");if(target)target.focus()}
+document.addEventListener("click",function(e){
+ var add=e.target.closest(".sm-add-reaction");if(add&&!add.disabled){reactionTarget=add.closest(".sm-msg");var err=reactionDialog.querySelector(".sm-action-error");err.hidden=true;err.textContent="";reactionDialog.showModal();return}
+ var choice=e.target.closest("button[data-reaction]");if(choice&&!choice.disabled){react(choice.closest(".sm-reaction-picker")?reactionTarget:choice.closest(".sm-msg"),choice.dataset.reaction);return}
+ if(e.target===reactionDialog||e.target.closest(".sm-reaction-close")){closeReactions();return}
+ var reply=e.target.closest(".sm-reply-action"),box=document.querySelector(".sm-composer[data-thread]");if(reply&&box&&box.dataset.thread===reply.dataset.thread&&box.dataset.channel===reply.closest(".sm-msg").dataset.channel){e.preventDefault();focusReply()}
+});
+if(location.hash==="#reply")focusReply();
 function send(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim(),user=identity();if(!text||t.disabled||!user)return;var body={channel:box.dataset.channel,user:user.id,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:authHeaders({"content-type":"application/json"}),body:JSON.stringify(body)}).then(function(r){t.disabled=false;if(r.status===401||r.status===403){setCred("");lockUi();var err=box.querySelector(".sm-err");if(err)err.textContent="Not signed in, or the credential changed. Sign in to post.";return}if(!r.ok)throw new Error("send failed "+r.status);t.value="";if(LIVE)refresh();else location.reload()}).catch(function(){t.disabled=false})}
 document.querySelectorAll(".sm-composer").forEach(function(box){
  var ta=box.querySelector(".sm-composer-text"),menu=box.querySelector(".sm-mentions"),items=[],active=0;
@@ -915,7 +1001,7 @@ document.querySelectorAll(".sm-composer").forEach(function(box){
  box.querySelector(".sm-composer-send").addEventListener("click",function(){send(box)});
 });
 })();`;
-  return `${mentionData(store)}<script>${body}${esc}</script>`;
+  return `${mentionData(store)}${reactionPicker()}<script>${body}${esc}</script>`;
 }
 
 function channelView(store: Store, opts: RenderOptions, channelId: string): string {

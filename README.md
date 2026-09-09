@@ -49,6 +49,9 @@ The browser remembers your choice across channels and threads.
 Open `/c/support?as=taras` to select Taras. The page removes `as` from the URL after selection.
 Public workspaces show the chip after presenter sign-in.
 Optional user status text appears beside names in the users table and the chip's user list.
+Each message offers **React** and **Reply in thread**, including messages without replies.
+Choose an emoji to react, or select an existing reaction to add or remove your own.
+Reactions use the identity in the chip and require presenter sign-in in public workspaces.
 Below 700px, the sidebar becomes a top bar with a channel switcher.
 Threads fill the phone width. The composer follows the visible viewport and includes padding for the iOS home bar.
 Capture the phone layout with `bun test test/phone-ui.test.ts` (requires Chrome).
@@ -76,7 +79,7 @@ const reply = await slack.waitForMessage({ channel: "general", thread_ts: ask.ts
 
 What tests can do:
 
-| humans do | `postMessage` (text, thread, files), `editMessage`, `deleteMessage`, `addReaction`, `slashCommand`, `clickButton`, `submitView`, `startAssistantThread`, `changeAssistantContext`, `addUser`, `addChannel`, `openDm`, `invite` |
+| humans do | `postMessage` (text, thread, files), `editMessage`, `deleteMessage`, `addReaction`, `removeReaction`, `slashCommand`, `clickButton`, `submitView`, `startAssistantThread`, `changeAssistantContext`, `addUser`, `addChannel`, `openDm`, `invite` |
 |---|---|
 | observe | `messages`, `thread`, `ephemeralMessages`, `findMessages`, `waitForMessage`, `apiCalls`, `waitForApiCall`, `deliveries` (every envelope and its ack), `assistantThread` |
 | break things | `injectFault({ method, error, httpStatus, retryAfterSec, extra })`, `disconnectSockets("refresh_requested")`, options `ackTimeoutMs`, `maxRetries`, `triggerIdTtlMs`, `echoBotMessages`, `subscribedEvents` |
@@ -175,7 +178,7 @@ that possible, all read by `scripts/demo-server.ts`:
 | `APP_NAME` | Bot display name (`appName`). |
 | `SEED_FILE` | JSON with `users`, `channels`, `messages` and `driver.prompts` (`scripts/seed.ts`); replaces the built-in `#general` and is applied whenever the journal has no channels, so the workspace comes back after every reset. `seeds/agent-swarm-demo.json` is the shipped example. |
 | `UI_PUBLIC=true` | Keep `/` and `/c/...` readable without credentials while `ADMIN_AUTH` still gates `/mock/*` (`publicUi` option). The composer then shows a sign-in instead of the browser's basic-auth prompt. |
-| `PRESENTER_AUTH` | `user:password` that may only `POST /mock/messages` and `GET /mock/presenter` (`presenterAuth` option). Lets a presenter drive a public-read workspace from the composer without the admin credential. Opening `/c/<channel>#presenter=user:password` signs that browser in. |
+| `PRESENTER_AUTH` | `user:password` that permits `POST /mock/messages`, `POST /mock/reactions`, and `GET /mock/presenter` (`presenterAuth` option). A presenter can post messages and manage reactions without the admin credential. Opening `/c/<channel>#presenter=user:password` signs that browser in. |
 | `DRIVER_INTERVAL_MINUTES` | Every N minutes post the next `driver.prompts` entry as that user, mentioning the bot, while an app is connected (`scripts/driver.ts`). `0` disables it. |
 
 ## Docs

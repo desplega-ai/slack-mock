@@ -18,7 +18,7 @@ const basic = (s: string) => `Basic ${Buffer.from(s).toString("base64")}`;
 const admin = basic("ops:secret");
 const presenter = basic("stage:pass");
 
-test("presenterAuth may post messages and read its role, nothing else", async () => {
+test("presenterAuth may post messages, mutate reactions, and read its role", async () => {
   const post = await fetch(`${mock.baseUrl}/mock/messages`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: presenter },
@@ -26,6 +26,30 @@ test("presenterAuth may post messages and read its role, nothing else", async ()
   });
   expect(post.status).toBe(200);
   expect(mock.findMessages({ channel: "general", text: /from the stage/ })).toHaveLength(1);
+  const message = (await post.json()) as { ts: string };
+
+  const add = await fetch(`${mock.baseUrl}/mock/reactions`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: presenter },
+    body: JSON.stringify({ channel: "general", ts: message.ts, name: "eyes", user: "bob" }),
+  });
+  expect(add.status).toBe(200);
+  expect(mock.store.message("C0GENERAL0", message.ts).reactions).toEqual([
+    { name: "eyes", users: ["U0BOB00000"], count: 1 },
+  ]);
+  const remove = await fetch(`${mock.baseUrl}/mock/reactions`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: presenter },
+    body: JSON.stringify({
+      channel: "general",
+      ts: message.ts,
+      name: "eyes",
+      user: "bob",
+      action: "remove",
+    }),
+  });
+  expect(remove.status).toBe(200);
+  expect(mock.store.message("C0GENERAL0", message.ts).reactions).toBeUndefined();
 
   const role = await fetch(`${mock.baseUrl}/mock/presenter`, {
     headers: { authorization: presenter },
@@ -40,12 +64,12 @@ test("presenterAuth may post messages and read its role, nothing else", async ()
     headers: { authorization: presenter },
   });
   expect(state.status).toBe(403);
-  const reset = await fetch(`${mock.baseUrl}/mock/reactions`, {
+  const disconnect = await fetch(`${mock.baseUrl}/mock/disconnect`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: presenter },
-    body: JSON.stringify({ channel: "general", ts: "1", name: "eyes" }),
+    body: JSON.stringify({}),
   });
-  expect(reset.status).toBe(403);
+  expect(disconnect.status).toBe(403);
 });
 
 test("a wrong Authorization header on /mock is a plain 403; no header keeps the 401 challenge", async () => {
@@ -65,6 +89,22 @@ test("a wrong Authorization header on /mock is a plain 403; no header keeps the 
   expect(none.status).toBe(401);
   expect(none.headers.get("www-authenticate")).toContain("Basic");
   expect(mock.findMessages({ channel: "general", text: "x" })).toHaveLength(0);
+
+  const wrongReaction = await fetch(`${mock.baseUrl}/mock/reactions`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: basic("stage:nope") },
+    body: JSON.stringify({ channel: "general", ts: "1", name: "eyes" }),
+  });
+  expect(wrongReaction.status).toBe(403);
+  expect(wrongReaction.headers.get("www-authenticate")).toBeNull();
+
+  const noReactionAuth = await fetch(`${mock.baseUrl}/mock/reactions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ channel: "general", ts: "1", name: "eyes" }),
+  });
+  expect(noReactionAuth.status).toBe(401);
+  expect(noReactionAuth.headers.get("www-authenticate")).toContain("Basic");
 });
 
 test("public-read pages render a gated composer with the sign-in form", async () => {

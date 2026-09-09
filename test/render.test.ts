@@ -622,6 +622,57 @@ describe("renderPage", () => {
     expect(html).toContain(`<details class="sm-identity" hidden>`);
   });
 
+  test("messages without replies offer an action to start a thread", () => {
+    const { store, channel } = workspace();
+    const message = store.addMessage({ channel: channel.id, user: "U0ALICE", text: "Start here" });
+    const html = renderPage(store, { kind: "channel", channel: channel.id });
+    expect(message.reply_count).toBeUndefined();
+    expect(html).toContain(`href="/c/${channel.id}/t/${message.ts}#reply"`);
+    expect(html).toContain('aria-label="Reply in thread"');
+    expect(html).toContain('class="sm-add-reaction"');
+    expect(html).toContain('<dialog class="sm-reaction-picker"');
+  });
+
+  test("thread reply actions target the parent thread instead of nesting replies", () => {
+    const { store, channel, human, reply } = workspace();
+    const html = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
+    expect(html).toContain(`href="/c/${channel.id}/t/${human.ts}#reply"`);
+    expect(html).not.toContain(`href="/c/${channel.id}/t/${reply.ts}#reply"`);
+  });
+
+  test("reaction buttons carry membership and stay disabled before presenter sign-in", () => {
+    const { store, channel, human } = workspace();
+    store.addReaction(channel.id, human.ts, "eyes", "U0ALICE");
+    const html = renderPage(store, { kind: "channel", channel: channel.id }, { writeGated: true });
+    expect(html).toContain('data-reaction="eyes" data-users="[&quot;U0ALICE&quot;]"');
+    expect(html).toContain('aria-label="Add :eyes: reaction, 1 person reacted"');
+    expect(html).toContain('aria-pressed="false" disabled');
+    expect(html).toContain('title="Add reaction" disabled');
+    store.addReaction(channel.id, human.ts, "eyes", "U0BOT");
+    const updated = renderPage(store, { kind: "channel", channel: channel.id });
+    expect(updated).toContain('aria-label="Add :eyes: reaction, 2 people reacted"');
+  });
+
+  test("screenshot and ephemeral messages keep reactions read-only", () => {
+    const { store, channel, human } = workspace();
+    const shot = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { screenshot: true },
+    );
+    expect(shot).not.toContain('class="sm-message-actions"');
+    expect(shot).not.toContain('<dialog class="sm-reaction-picker"');
+    const ephemeral = store.ephemerals[0]!;
+    ephemeral.reactions = [{ name: "eyes", users: ["U0ALICE"], count: 1 }];
+    const html = renderPage(store, { kind: "channel", channel: channel.id });
+    const ephemeralHtml = html.slice(
+      html.indexOf('class="sm-msg sm-msg-eph"'),
+      html.indexOf('<div class="sm-composer"'),
+    );
+    expect(ephemeralHtml).toContain('<span class="sm-reaction"');
+    expect(ephemeralHtml).not.toContain('class="sm-add-reaction"');
+  });
+
   test("user status appears after names in the table and identity list as escaped text", () => {
     const { store, channel } = workspace();
     store.addUser({ name: "eze", real_name: "Eze", status: "On a call <&>" });
