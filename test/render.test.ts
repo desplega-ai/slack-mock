@@ -622,6 +622,18 @@ describe("renderPage", () => {
     expect(html).toContain(`<details class="sm-identity" hidden>`);
   });
 
+  test("user status appears after names in the table and identity list as escaped text", () => {
+    const { store, channel } = workspace();
+    store.addUser({ name: "eze", real_name: "Eze", status: "On a call <&>" });
+    const status = '<span class="sm-user-status">On a call &lt;&amp;&gt;</span>';
+    const indexHtml = renderPage(store, { kind: "index" });
+    const channelHtml = renderPage(store, { kind: "channel", channel: channel.id });
+    expect(indexHtml).toContain(`<td data-label="Name">eze${status}</td>`);
+    expect(channelHtml).toContain(`<span>Eze${status}</span>`);
+    expect(indexHtml).not.toContain("On a call <&>");
+    expect(channelHtml).not.toContain("On a call <&>");
+  });
+
   test("phone pages include responsive CSS, safe areas and a channel switcher", () => {
     const { store, channel, human } = workspace();
     const html = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });

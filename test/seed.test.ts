@@ -37,6 +37,7 @@ test("the shipped agent-swarm seed applies cleanly and is idempotent", () => {
   expect(mock.store.user("U0PRIYA000").profile.title).toBe("Ops");
   expect(mock.store.user("U0TARAS000").profile.title).toBe("Co-founder");
   expect(mock.store.user("U0EZE00000").profile.title).toBe("Co-founder");
+  expect(mock.store.user("U0EZE00000").profile.status_text).toBe("On a call");
   expect([...mock.store.users.values()].filter((user) => !user.is_bot)).toHaveLength(7);
   for (const messages of mock.store.messages.values()) {
     for (const message of messages) {
@@ -49,6 +50,24 @@ test("the shipped agent-swarm seed applies cleanly and is idempotent", () => {
   expect(again.channels).toBe(0);
   // Messages are not deduplicated (demo-server only seeds an empty journal), so they append.
   expect(mock.messages("general").length).toBe(6);
+});
+
+test("reseeding preserves an existing username's profile", () => {
+  const isolated = new SlackMock({ seed: false });
+  const existing = isolated.addUser({
+    id: "U0EZEOLD00",
+    name: "eze",
+    real_name: "Existing Eze",
+    email: "existing-eze@example.com",
+    status: "In a meeting",
+  });
+  const originalProfile = { ...existing.profile };
+
+  const result = applySeed(isolated, loadSeedFile("seeds/agent-swarm-demo.json"));
+
+  expect(result.users).toBe(6);
+  expect(isolated.store.user("U0EZEOLD00").profile).toEqual(originalProfile);
+  expect(isolated.store.users.has("U0EZE00000")).toBeFalse();
 });
 
 test("driver prompts use the <@bot> placeholder", () => {

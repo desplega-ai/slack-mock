@@ -44,6 +44,7 @@ export interface AddUserInput {
   real_name?: string;
   email?: string;
   title?: string;
+  status?: string;
   is_admin?: boolean;
   is_bot?: boolean;
   tz?: string;
@@ -246,6 +247,7 @@ export class Store {
         display_name_normalized: input.name,
         email: input.email,
         title: input.title,
+        status_text: input.status,
         team: this.team.id,
       },
     };

@@ -93,13 +93,24 @@ test("channels, users, reactions, and permalinks return Slack errors", async () 
 
   const user = await app.client.users.info({ user: "U0ALICE000" });
   expect(user.user?.name).toBe("alice");
+  expect(user.user?.real_name).toBe("Alice Example");
+  expect(user.user?.profile?.email).toBe("alice@example.com");
   expect((await app.client.users.lookupByEmail({ email: "alice@example.com" })).user?.id).toBe(
     "U0ALICE000",
   );
 
-  const titled = mock.addUser({ name: "titled", title: "Support Engineer" });
+  const titled = mock.addUser({
+    name: "titled",
+    real_name: "Titled User",
+    email: "titled@example.com",
+    title: "Support Engineer",
+    status: "On a call",
+  });
   const titledInfo = await app.client.users.info({ user: titled.id });
   expect(titledInfo.user?.profile?.title).toBe("Support Engineer");
+  expect(titledInfo.user?.profile?.status_text).toBe("On a call");
+  expect(titledInfo.user?.real_name).toBe("Titled User");
+  expect(titledInfo.user?.profile?.email).toBe("titled@example.com");
   expect(
     errorCode(await rejected(app.client.users.lookupByEmail({ email: "missing@example.com" }))),
   ).toBe("users_not_found");

@@ -130,6 +130,7 @@ a:hover{text-decoration:underline}
 .sm-identity-list button{display:flex;align-items:center;gap:8px;width:100%;border:0;border-radius:4px;padding:6px;background:#fff;color:#1d1c1d;font:inherit;text-align:left;cursor:pointer}
 .sm-identity-list button:hover,.sm-identity-list button:focus{background:#f0f0f0;outline:none}
 .sm-identity-user{font-size:12px;color:#616061;margin-left:auto}
+.sm-user-status{margin-left:6px;font-size:12px;font-weight:400;color:#616061}
 .sm-mobile-bar{display:none}
 
 .sm-daydiv{display:flex;align-items:center;gap:10px;margin:14px 0 8px}
@@ -689,7 +690,7 @@ function indexView(store: Store, opts: RenderOptions): string {
   const userRows = [...store.users.values()]
     .map(
       (u) =>
-        `<tr><td data-label="Name">${escapeHtml(u.name)}</td><td data-label="Real name">${escapeHtml(u.real_name)}</td><td class="sm-muted" data-label="Title">${escapeHtml(u.profile.title ?? "")}</td><td class="sm-muted" data-label="Email">${escapeHtml(u.profile.email ?? "")}</td><td class="sm-muted" data-label="Id">${u.id}</td><td data-label="Type">${u.is_bot ? `<span class="sm-tag">bot</span>` : ""}</td></tr>`,
+        `<tr><td data-label="Name">${escapeHtml(u.name)}${userStatus(u)}</td><td data-label="Real name">${escapeHtml(u.real_name)}</td><td class="sm-muted" data-label="Title">${escapeHtml(u.profile.title ?? "")}</td><td class="sm-muted" data-label="Email">${escapeHtml(u.profile.email ?? "")}</td><td class="sm-muted" data-label="Id">${u.id}</td><td data-label="Type">${u.is_bot ? `<span class="sm-tag">bot</span>` : ""}</td></tr>`,
     )
     .join("");
 
@@ -759,6 +760,12 @@ function humanUsers(store: Store): SlackUser[] {
   return [...store.users.values()].filter((u) => !u.is_bot && !u.deleted);
 }
 
+function userStatus(user: SlackUser): string {
+  return user.profile.status_text
+    ? `<span class="sm-user-status">${escapeHtml(user.profile.status_text)}</span>`
+    : "";
+}
+
 function identityChip(store: Store, opts: RenderOptions): string {
   if (opts.screenshot) return "";
   const users = humanUsers(store);
@@ -770,7 +777,7 @@ function identityChip(store: Store, opts: RenderOptions): string {
     .map((u) => {
       const real = u.real_name || u.name;
       const color = AVATAR_COLORS[hashIndex(u.id, AVATAR_COLORS.length)];
-      return `<li><button type="button" data-user="${escapeHtml(u.id)}"><span class="sm-identity-avatar" style="background:${color}">${escapeHtml(initials(real))}</span><span>${escapeHtml(real)}</span><span class="sm-identity-user">@${escapeHtml(u.name)}</span></button></li>`;
+      return `<li><button type="button" data-user="${escapeHtml(u.id)}"><span class="sm-identity-avatar" style="background:${color}">${escapeHtml(initials(real))}</span><span>${escapeHtml(real)}${userStatus(u)}</span><span class="sm-identity-user">@${escapeHtml(u.name)}</span></button></li>`;
     })
     .join("");
   const hidden = opts.writeGated ? " hidden" : "";

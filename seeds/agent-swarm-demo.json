@@ -53,7 +53,8 @@
       "name": "eze",
       "real_name": "Eze",
       "title": "Co-founder",
-      "email": "eze@northwind.example"
+      "email": "eze@northwind.example",
+      "status": "On a call"
     }
   ],
   "channels": [
