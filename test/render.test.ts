@@ -374,6 +374,8 @@ describe("renderPage", () => {
     expect(html).toContain("general");
     expect(html).toContain("alice@example.com");
     expect(html).toContain(`href="/c/C0GEN"`);
+    expect(html).toContain(`class="sm-identity"`);
+    expect(html).toContain(`id="sm-users"`);
   });
 
   test("channel page shows the top-level message, reply count and ephemerals", () => {
@@ -572,10 +574,7 @@ describe("renderPage", () => {
     const { store, channel, human } = workspace();
     const channelHtml = renderPage(store, { kind: "channel", channel: channel.id });
     expect(channelHtml).toContain(`<div class="sm-composer" data-channel="C0GEN">`);
-    expect(channelHtml).toContain(`<select class="sm-composer-user"`);
-    expect(channelHtml).toContain(`<option value="U0ALICE" selected>Alice Example</option>`);
-    // Bots never appear in the composer.
-    expect(channelHtml).not.toContain(`<option value="U0BOT"`);
+    expect(channelHtml).not.toContain("sm-composer-user");
     expect(channelHtml).toContain(`<textarea class="sm-composer-text"`);
     expect(channelHtml).toContain("Message #general");
     expect(channelHtml).toContain("Enter to send, Shift+Enter for a new line, @name to mention");
@@ -593,6 +592,32 @@ describe("renderPage", () => {
       { threadView: "full" },
     );
     expect(fullHtml).toContain(`data-thread="${human.ts}"`);
+  });
+
+  test("posting identity appears in workspace, channel and full-thread headers", () => {
+    const { store, channel, human } = workspace();
+    const bob = store.addUser({ name: "bob", real_name: "Bob Example" });
+    const indexHtml = renderPage(store, { kind: "index" });
+    const channelHtml = renderPage(store, { kind: "channel", channel: channel.id });
+    const fullThreadHtml = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { threadView: "full" },
+    );
+    for (const html of [indexHtml, channelHtml, fullThreadHtml]) {
+      expect(html).toContain(`<details class="sm-identity">`);
+      expect(html).toContain(`aria-label="Posting as Alice Example"`);
+      expect(html).toContain(`<ul class="sm-identity-list">`);
+      expect(html).toContain(`data-user="U0ALICE"`);
+      expect(html).toContain(`data-user="${bob.id}"`);
+      expect(html).not.toContain(`data-user="U0BOT"`);
+    }
+  });
+
+  test("posting identity stays hidden until presenter sign-in", () => {
+    const { store, channel } = workspace();
+    const html = renderPage(store, { kind: "channel", channel: channel.id }, { writeGated: true });
+    expect(html).toContain(`<details class="sm-identity" hidden>`);
   });
 
   test("scroll containers are pinned to the newest message", () => {

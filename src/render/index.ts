@@ -101,8 +101,6 @@ a:hover{text-decoration:underline}
 .sm-composer-box{border:1px solid #bbb;border-radius:8px;padding:8px 10px;background:#fff}
 .sm-composer-box:focus-within{border-color:#1264a3;box-shadow:0 0 0 1px #1264a3}
 .sm-composer-row{display:flex;align-items:center;gap:8px;margin-top:6px}
-.sm-composer-user{flex:0 1 auto;min-width:0;max-width:170px;border:0;border-radius:4px;background:#f0f0f0;color:#1d1c1d;font-family:inherit;font-size:12px;padding:4px 6px}
-.sm-composer-user:hover{background:#e8e8e8}
 .sm-composer-text{display:block;width:100%;border:0;outline:none;resize:vertical;font-family:inherit;font-size:15px;line-height:20px;color:#1d1c1d;padding:0;background:none}
 .sm-composer-send{flex:none;margin-left:auto;border:0;border-radius:4px;background:#007a5a;color:#fff;font-family:inherit;font-weight:700;font-size:13px;padding:6px 14px;cursor:pointer}
 .sm-composer-send:hover{background:#148567;color:#fff}
@@ -116,12 +114,22 @@ a:hover{text-decoration:underline}
 .sm-mention-name{font-weight:700}
 .sm-mention-real{color:#616061;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-.sm-side a,.sm-btn,.sm-select,.sm-reaction,.sm-file-card,.sm-prompt,.sm-replies,.sm-back,.sm-panel-close,.sm-panel-expand,.sm-composer-send,.sm-composer-user,.sm-top-actions a{cursor:pointer}
+.sm-side a,.sm-btn,.sm-select,.sm-reaction,.sm-file-card,.sm-prompt,.sm-replies,.sm-back,.sm-panel-close,.sm-panel-expand,.sm-composer-send,.sm-top-actions a{cursor:pointer}
 .sm-composer-text{cursor:text}
 .sm-badge,.sm-time,.sm-daydiv,.sm-pill,.sm-emoji-name,.sm-avatar,.sm-name,.sm-composer-hint,.sm-unsupported,.sm-tag,.sm-card{cursor:default}
-.sm-top-actions{margin-left:auto;display:flex;gap:12px;align-items:baseline;flex:none}
+.sm-top-actions{margin-left:auto;display:flex;gap:12px;align-items:center;flex:none}
 .sm-top-actions a{font-size:13px;font-weight:700;color:#616061}
 .sm-top-actions a:hover{color:#1264a3}
+.sm-identity{position:relative}
+.sm-identity[hidden]{display:none}
+.sm-identity summary{display:flex;align-items:center;gap:6px;list-style:none;border:1px solid #ddd;border-radius:16px;padding:2px 8px 2px 3px;font-size:13px;font-weight:700;cursor:pointer}
+.sm-identity summary::-webkit-details-marker{display:none}
+.sm-identity summary:hover{background:#f8f8f8}
+.sm-identity-avatar{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;flex:none}
+.sm-identity-list{position:absolute;right:0;top:100%;z-index:10;width:max-content;min-width:190px;max-width:280px;margin:6px 0 0;padding:4px;list-style:none;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.16)}
+.sm-identity-list button{display:flex;align-items:center;gap:8px;width:100%;border:0;border-radius:4px;padding:6px;background:#fff;color:#1d1c1d;font:inherit;text-align:left;cursor:pointer}
+.sm-identity-list button:hover,.sm-identity-list button:focus{background:#f0f0f0;outline:none}
+.sm-identity-user{font-size:12px;color:#616061;margin-left:auto}
 @media (max-width:900px){
   .sm-side{display:none}
   .sm-app-thread .sm-main{display:none}
@@ -627,8 +635,14 @@ ${
 
   return shell(store, opts, {
     title: `${store.team.name} · slack-mock`,
-    header: topbar(escapeHtml(store.team.name), "slack-mock workspace"),
+    header: topbar(
+      escapeHtml(store.team.name),
+      "slack-mock workspace",
+      undefined,
+      identityChip(store, opts),
+    ),
     main,
+    script: opts.screenshot ? "" : uiScript(store, opts, undefined, false),
   });
 }
 
@@ -660,7 +674,12 @@ function channelColumn(
 function channelHeader(store: Store, opts: RenderOptions, channel: SlackChannel): string {
   const sub = [channel.topic.value, channel.purpose.value].filter(Boolean).join(" · ");
   const back = opts.screenshot ? undefined : { href: homeHref(opts), label: "← Workspace" };
-  return topbar(escapeHtml(channelLabel(store, channel)), escapeHtml(sub), back);
+  return topbar(
+    escapeHtml(channelLabel(store, channel)),
+    escapeHtml(sub),
+    back,
+    identityChip(store, opts),
+  );
 }
 
 // ---------------------------------------------------------------- composer
@@ -668,6 +687,24 @@ function channelHeader(store: Store, opts: RenderOptions, channel: SlackChannel)
 /** Human users, bots excluded: the composer posts as one of them. */
 function humanUsers(store: Store): SlackUser[] {
   return [...store.users.values()].filter((u) => !u.is_bot && !u.deleted);
+}
+
+function identityChip(store: Store, opts: RenderOptions): string {
+  if (opts.screenshot) return "";
+  const users = humanUsers(store);
+  const selected = users[0];
+  if (!selected) return "";
+  const name = selected.real_name || selected.name;
+  const avatar = `<span class="sm-identity-avatar" style="background:${AVATAR_COLORS[hashIndex(selected.id, AVATAR_COLORS.length)]}">${escapeHtml(initials(name))}</span>`;
+  const items = users
+    .map((u) => {
+      const real = u.real_name || u.name;
+      const color = AVATAR_COLORS[hashIndex(u.id, AVATAR_COLORS.length)];
+      return `<li><button type="button" data-user="${escapeHtml(u.id)}"><span class="sm-identity-avatar" style="background:${color}">${escapeHtml(initials(real))}</span><span>${escapeHtml(real)}</span><span class="sm-identity-user">@${escapeHtml(u.name)}</span></button></li>`;
+    })
+    .join("");
+  const hidden = opts.writeGated ? " hidden" : "";
+  return `<details class="sm-identity"${hidden}><summary title="Change posting identity" aria-label="Posting as ${escapeHtml(name)}">${avatar}<span class="sm-identity-name">${escapeHtml(name)}</span></summary><ul class="sm-identity-list">${items}</ul></details>`;
 }
 
 function composer(
@@ -679,19 +716,13 @@ function composer(
   if (opts.screenshot) return "";
   const users = humanUsers(store);
   if (!users.length) return "";
-  const options = users
-    .map(
-      (u, i) =>
-        `<option value="${escapeHtml(u.id)}"${i === 0 ? " selected" : ""}>${escapeHtml(u.real_name || u.name)}</option>`,
-    )
-    .join("");
   const placeholder = threadTs ? "Reply in thread" : `Message ${channelLabel(store, channel)}`;
   const thread = threadTs ? ` data-thread="${escapeHtml(threadTs)}"` : "";
   const gated = opts.writeGated ? ' data-gated="1"' : "";
   const lock = opts.writeGated
     ? `<div class="sm-composer-lock" hidden><span>Reading is open. Sign in to post.</span><input class="sm-lock-user" placeholder="user" autocomplete="username"><input class="sm-lock-pass" type="password" placeholder="password" autocomplete="current-password"><button type="button" class="sm-lock-go">Sign in</button><span class="sm-err"></span></div>`
     : "";
-  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}${gated}><div class="sm-mentions"></div><div class="sm-composer-box"><textarea class="sm-composer-text" rows="2" placeholder="${escapeHtml(placeholder)}" data-placeholder="${escapeHtml(placeholder)}"></textarea><div class="sm-composer-row"><select class="sm-composer-user" aria-label="Post as">${options}</select><button type="button" class="sm-composer-send">Send</button></div></div>${lock}<div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention<span class="sm-lock-state"></span></div></div>`;
+  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}${gated}><div class="sm-mentions"></div><div class="sm-composer-box"><textarea class="sm-composer-text" rows="2" placeholder="${escapeHtml(placeholder)}" data-placeholder="${escapeHtml(placeholder)}"></textarea><div class="sm-composer-row"><button type="button" class="sm-composer-send">Send</button></div></div>${lock}<div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention<span class="sm-lock-state"></span></div></div>`;
 }
 
 /** Mention targets for the composer autocomplete: every user, bots included. */
@@ -699,10 +730,12 @@ function mentionData(store: Store): string {
   const users = [...store.users.values()]
     .filter((u) => !u.deleted)
     .map((u) => ({
+      id: u.id,
       name: u.name,
       real: u.real_name || u.name,
       initials: initials(u.real_name || u.name),
       color: AVATAR_COLORS[hashIndex(u.id, AVATAR_COLORS.length)],
+      bot: u.is_bot,
     }));
   const json = JSON.stringify(users).replace(/</g, "\\u003c");
   return `<script type="application/json" id="sm-users">${json}</script>`;
@@ -712,14 +745,13 @@ function mentionData(store: Store): string {
  * The whole client side: scroll to the newest message, drag the panel edge,
  * send from the composers, mention autocomplete and Escape to close a thread.
  */
-function uiScript(store: Store, opts: RenderOptions, closeUrl?: string): string {
+function uiScript(store: Store, opts: RenderOptions, closeUrl?: string, autoScroll = true): string {
   const esc = closeUrl
     ? `document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!/^(TEXTAREA|INPUT|SELECT)$/.test(document.activeElement&&document.activeElement.tagName||""))location.href=${JSON.stringify(closeUrl)}});`
     : "";
   const body = `(function(){
 var W="sm-panel-w",DEF=${JSON.stringify(panelWidth(opts))},FIXED=${opts.panelWidth ? "true" : "false"};
-function scroll(){document.querySelectorAll(".sm-scroll").forEach(function(el){el.scrollTop=el.scrollHeight})}
-scroll();addEventListener("load",scroll);
+${autoScroll ? 'function scroll(){document.querySelectorAll(".sm-scroll").forEach(function(el){el.scrollTop=el.scrollHeight})}\nscroll();addEventListener("load",scroll);' : ""}
 var handle=document.querySelector(".sm-resize");
 if(handle){
  var saved=null;try{saved=localStorage.getItem(W)}catch(e){}
@@ -731,21 +763,29 @@ if(handle){
  handle.addEventListener("dblclick",function(){try{localStorage.removeItem(W)}catch(e){}document.body.style.setProperty("--sm-panel-w",DEF)});
 }
 var raw=document.getElementById("sm-users");
-var PEOPLE=(raw?JSON.parse(raw.textContent||"[]"):[]).concat([{name:"here",real:"Notify everyone online",initials:"@",color:"#616061"},{name:"channel",real:"Notify everyone in the channel",initials:"@",color:"#616061"}]);
+var USERS=raw?JSON.parse(raw.textContent||"[]"):[],HUMANS=USERS.filter(function(u){return !u.bot});
+var PEOPLE=USERS.concat([{name:"here",real:"Notify everyone online",initials:"@",color:"#616061"},{name:"channel",real:"Notify everyone in the channel",initials:"@",color:"#616061"}]);
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;"})}
-var GATED=${opts.writeGated ? "true" : "false"},LIVE=${opts.live !== false && !opts.refreshSec ? "true" : "false"},CK="sm-presenter";
+var GATED=${opts.writeGated ? "true" : "false"},LIVE=${opts.live !== false && !opts.refreshSec ? "true" : "false"},CK="sm-presenter",IK="sm-identity",currentIdentity="",identityStorage=true;
 function cred(){try{return localStorage.getItem(CK)||""}catch(e){return ""}}
 function setCred(v){try{if(v)localStorage.setItem(CK,v);else localStorage.removeItem(CK)}catch(e){}}
+function setIdentity(v){currentIdentity=v;try{if(v)localStorage.setItem(IK,v);else localStorage.removeItem(IK)}catch(e){identityStorage=false}}
+function findIdentity(value,key){for(var i=0;i<HUMANS.length;i++)if(HUMANS[i][key]===value)return HUMANS[i];return null}
+function identity(){var id=currentIdentity;if(identityStorage)try{id=localStorage.getItem(IK)||currentIdentity}catch(e){identityStorage=false}currentIdentity=id;var u=findIdentity(id,"id");if(!u&&HUMANS.length){u=HUMANS[0];setIdentity(u.id)}return u}
+(function(){var url=null,name=null;try{url=new URL(location.href);name=url.searchParams.get("as")}catch(e){}if(url&&name!==null){var u=findIdentity(name,"name");if(u)setIdentity(u.id);url.searchParams.delete("as");var search=url.searchParams.toString();history.replaceState(null,"",url.pathname+(search?"?"+search:"")+url.hash)}})();
 (function(){var m=/[#&]presenter=([^&]+)/.exec(location.hash||"");if(m){setCred(btoa(decodeURIComponent(m[1])));history.replaceState(null,"",location.pathname+location.search)}})();
 function authHeaders(h){var c=cred();if(c)h.authorization="Basic "+c;return h}
-function lockUi(){document.querySelectorAll(".sm-composer").forEach(function(box){var locked=GATED&&!cred(),lock=box.querySelector(".sm-composer-lock"),ta=box.querySelector(".sm-composer-text"),btn=box.querySelector(".sm-composer-send"),state=box.querySelector(".sm-lock-state");if(lock)lock.hidden=!locked;ta.disabled=locked;btn.disabled=locked;ta.placeholder=locked?"Sign in to post":(ta.dataset.placeholder||"");if(state)state.innerHTML=GATED&&!locked?' · signed in · <a href="#" class="sm-lock-out">Sign out</a>':""})}
+function identityUi(){var u=identity();document.querySelectorAll(".sm-identity").forEach(function(chip){chip.hidden=GATED&&!cred();if(!u)return;var av=chip.querySelector("summary .sm-identity-avatar"),name=chip.querySelector(".sm-identity-name"),summary=chip.querySelector("summary");if(av){av.textContent=u.initials;av.style.backgroundColor=u.color}if(name)name.textContent=u.real;if(summary)summary.setAttribute("aria-label","Posting as "+u.real);chip.querySelectorAll("[data-user]").forEach(function(button){if(button.dataset.user===u.id)button.setAttribute("aria-current","true");else button.removeAttribute("aria-current")})})}
+function lockUi(){document.querySelectorAll(".sm-composer").forEach(function(box){var locked=GATED&&!cred(),lock=box.querySelector(".sm-composer-lock"),ta=box.querySelector(".sm-composer-text"),btn=box.querySelector(".sm-composer-send"),state=box.querySelector(".sm-lock-state");if(lock)lock.hidden=!locked;ta.disabled=locked;btn.disabled=locked;ta.placeholder=locked?"Sign in to post":(ta.dataset.placeholder||"");if(state)state.innerHTML=GATED&&!locked?' · signed in · <a href="#" class="sm-lock-out">Sign out</a>':""});identityUi()}
 function signIn(box){if(!box)return;var u=box.querySelector(".sm-lock-user").value.trim(),p=box.querySelector(".sm-lock-pass").value,err=box.querySelector(".sm-err");if(!u){err.textContent="Enter the presenter user";return}var c=btoa(u+":"+p);err.textContent="";fetch("/mock/presenter",{headers:{authorization:"Basic "+c}}).then(function(r){if(!r.ok)throw new Error(r.status===401||r.status===403?"Wrong user or password":"Sign-in failed ("+r.status+")");setCred(c);lockUi();box.querySelector(".sm-composer-text").focus()}).catch(function(e){err.textContent=e.message})}
-document.addEventListener("click",function(e){var out=e.target.closest(".sm-lock-out");if(out){e.preventDefault();setCred("");lockUi();return}var go=e.target.closest(".sm-lock-go");if(go)signIn(go.closest(".sm-composer"))});
+document.addEventListener("click",function(e){var pick=e.target.closest(".sm-identity-list button");if(pick){setIdentity(pick.dataset.user);identityUi();pick.closest(".sm-identity").open=false;return}if(!e.target.closest(".sm-identity"))document.querySelectorAll(".sm-identity[open]").forEach(function(chip){chip.open=false});var out=e.target.closest(".sm-lock-out");if(out){e.preventDefault();setCred("");lockUi();return}var go=e.target.closest(".sm-lock-go");if(go)signIn(go.closest(".sm-composer"))});
+document.addEventListener("keydown",function(e){if(e.key!=="Escape")return;var chip=document.querySelector(".sm-identity[open]");if(!chip)return;e.preventDefault();e.stopImmediatePropagation();chip.open=false;chip.querySelector("summary").focus()});
 document.addEventListener("keydown",function(e){var c=e.target.classList;if(e.key==="Enter"&&c&&(c.contains("sm-lock-pass")||c.contains("sm-lock-user"))){e.preventDefault();signIn(e.target.closest(".sm-composer"))}});
+addEventListener("storage",function(e){if(e.key===IK){currentIdentity=e.newValue||"";identityUi()}});
 lockUi();
 var pending=null;
 function refresh(){if(pending)return;pending=setTimeout(function(){pending=null;fetch(location.href,{headers:{accept:"text/html"},credentials:"same-origin"}).then(function(r){return r.ok?r.text():Promise.reject(r.status)}).then(apply).catch(function(){})},120)}
-function apply(html){var doc=new DOMParser().parseFromString(html,"text/html");[".sm-side",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});if(doc.title)document.title=doc.title}
+function apply(html){var doc=new DOMParser().parseFromString(html,"text/html");[".sm-side",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});identityUi();if(doc.title)document.title=doc.title}
 if(LIVE&&window.EventSource){
  var box0=document.querySelector(".sm-composer"),pm=/^\\/c\\/([^/]+)/.exec(location.pathname),chan=box0?box0.dataset.channel:(pm?decodeURIComponent(pm[1]):null);
  if(chan){
@@ -757,7 +797,7 @@ if(LIVE&&window.EventSource){
   es.onerror=function(){down=true;if(dot){dot.textContent="● reconnecting";dot.classList.add("sm-live-off")}};
  }
 }
-function send(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim();if(!text||t.disabled)return;var body={channel:box.dataset.channel,user:box.querySelector(".sm-composer-user").value,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:authHeaders({"content-type":"application/json"}),body:JSON.stringify(body)}).then(function(r){t.disabled=false;if(r.status===401||r.status===403){setCred("");lockUi();var err=box.querySelector(".sm-err");if(err)err.textContent="Not signed in, or the credential changed. Sign in to post.";return}if(!r.ok)throw new Error("send failed "+r.status);t.value="";if(LIVE)refresh();else location.reload()}).catch(function(){t.disabled=false})}
+function send(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim(),user=identity();if(!text||t.disabled||!user)return;var body={channel:box.dataset.channel,user:user.id,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:authHeaders({"content-type":"application/json"}),body:JSON.stringify(body)}).then(function(r){t.disabled=false;if(r.status===401||r.status===403){setCred("");lockUi();var err=box.querySelector(".sm-err");if(err)err.textContent="Not signed in, or the credential changed. Sign in to post.";return}if(!r.ok)throw new Error("send failed "+r.status);t.value="";if(LIVE)refresh();else location.reload()}).catch(function(){t.disabled=false})}
 document.querySelectorAll(".sm-composer").forEach(function(box){
  var ta=box.querySelector(".sm-composer-text"),menu=box.querySelector(".sm-mentions"),items=[],active=0;
  function close(){items=[];menu.style.display="none"}
@@ -878,7 +918,7 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
       `Thread <span class="sm-muted">·</span> ${escapeHtml(label)}`,
       "",
       { href: close, label: `← ${label}` },
-      `<a class="sm-icon-btn" href="${threadHref(channel.id, ts, opts, { full: false })}" title="Collapse to panel" aria-label="Collapse to panel">⤡</a>`,
+      `<a class="sm-icon-btn" href="${threadHref(channel.id, ts, opts, { full: false })}" title="Collapse to panel" aria-label="Collapse to panel">⤡</a>${identityChip(store, opts)}`,
     );
     return shell(store, opts, {
       title,

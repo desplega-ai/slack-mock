@@ -42,6 +42,13 @@ open http://127.0.0.1:4040/c/general            # live view: new messages arrive
 bun src/cli.ts screenshot http://127.0.0.1:4040/c/general --out general.png
 ```
 
+## UI
+
+Use the avatar and name chip to choose who posts from every composer.
+The browser remembers your choice across channels and threads.
+Open `/c/support?as=taras` to select Taras. The page removes `as` from the URL after selection.
+Public workspaces show the chip after presenter sign-in.
+
 ## In tests
 
 ```ts
