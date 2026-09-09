@@ -70,7 +70,7 @@ a:hover{text-decoration:underline}
 .sm-side a:hover{background:#522653;color:#fff;text-decoration:none}
 .sm-side a.sm-active,.sm-side a.sm-active:hover{background:#1164a3;color:#fff}
 .sm-side-title a:hover{background:none;text-decoration:underline}
-.sm-main{flex:1;min-width:280px;display:flex;flex-direction:column;overflow:hidden}
+.sm-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .sm-shot{width:760px;padding:16px;background:#fff}
 .sm-top{border-bottom:1px solid #e8e8e8;padding:12px 20px;display:flex;align-items:baseline;gap:12px;flex:none}
 .sm-top h1{font-size:18px;font-weight:900;margin:0}
@@ -130,13 +130,7 @@ a:hover{text-decoration:underline}
 .sm-identity-list button{display:flex;align-items:center;gap:8px;width:100%;border:0;border-radius:4px;padding:6px;background:#fff;color:#1d1c1d;font:inherit;text-align:left;cursor:pointer}
 .sm-identity-list button:hover,.sm-identity-list button:focus{background:#f0f0f0;outline:none}
 .sm-identity-user{font-size:12px;color:#616061;margin-left:auto}
-@media (max-width:900px){
-  .sm-side{display:none}
-  .sm-app-thread .sm-main{display:none}
-  .sm-panel{width:100%;min-width:0;border-left:0}
-  .sm-panel-back{display:block}
-  .sm-panel-expand,.sm-resize{display:none}
-}
+.sm-mobile-bar{display:none}
 
 .sm-daydiv{display:flex;align-items:center;gap:10px;margin:14px 0 8px}
 .sm-daydiv:before,.sm-daydiv:after{content:"";flex:1;height:1px;background:#e8e8e8}
@@ -165,7 +159,7 @@ a:hover{text-decoration:underline}
 .sm-msg-new{animation:sm-flash 2.4s ease-out}
 .sm-msg-changed{animation:sm-flash-soft .9s ease-out}
 @media (prefers-reduced-motion:reduce){.sm-msg-new,.sm-msg-changed{animation:none}}
-.sm-live{font-size:11px;font-weight:600;color:#2eb67d;margin-left:10px;vertical-align:middle}
+.sm-live{font-size:11px;font-weight:600;color:#2eb67d;margin-left:10px;vertical-align:middle;white-space:nowrap}
 .sm-live-off{color:#e8912d}
 .sm-composer-lock{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 2px;font-size:13px;color:#616061}
 .sm-composer-lock[hidden]{display:none}
@@ -269,6 +263,75 @@ a:hover{text-decoration:underline}
 .sm-table td{padding:6px 10px 6px 0;border-bottom:1px solid #f2f2f2;vertical-align:top}
 .sm-tag{display:inline-block;background:#f0f0f0;color:#454245;border-radius:10px;padding:0 8px;font-size:11px;font-weight:700}
 .sm-muted{color:#616061}
+
+@media (min-width:700px) and (max-width:1000px){
+  .sm-side{width:180px}
+  .sm-panel{min-width:300px;max-width:calc(100% - 360px)}
+  .sm-top{padding:8px 12px;gap:6px;align-items:center;flex-wrap:wrap}
+  .sm-top h1{min-width:0;overflow-wrap:anywhere}
+  .sm-top .sm-sub{display:none}
+  .sm-top-actions{min-width:0;max-width:100%;flex-shrink:1}
+  .sm-identity{min-width:0;max-width:100%}
+  .sm-identity-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sm-replies{flex-wrap:wrap}
+  .sm-att-img,.sm-file-img,.sm-video-thumb,.sm-file-card{max-width:100%}
+}
+@media (max-width:699px){
+  html,body{overflow:hidden;overscroll-behavior:none}
+  body{overflow-wrap:anywhere}
+  .sm-app{position:fixed;top:var(--sm-viewport-top,0px);left:0;width:100%;height:100dvh;height:var(--sm-viewport-height,100dvh);flex-direction:column}
+  .sm-side,.sm-resize{display:none}
+  .sm-mobile-bar{display:block;flex:none;background:#3f0e40;color:#fff;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;z-index:10}
+  .sm-mobile-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+  .sm-mobile-workspace{display:flex;align-items:center;min-height:40px;min-width:0;color:#fff;font-size:17px;font-weight:900}
+  .sm-mobile-bar .sm-identity{flex:none;max-width:55%;color:#1d1c1d}
+  .sm-identity summary{min-height:40px;background:#fff;border-radius:20px}
+  .sm-identity-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sm-identity-list{width:280px;max-width:calc(100vw - 24px);max-height:calc(var(--sm-viewport-height,100dvh) - 120px);overflow-y:auto}
+  .sm-identity-list button{min-height:40px}
+  .sm-identity-list button>span{min-width:0;overflow-wrap:anywhere}
+  .sm-identity-user{white-space:normal}
+  .sm-channel-switch{display:block;width:100%;min-height:40px;margin-top:6px;padding:6px 10px;border:1px solid #79547a;border-radius:5px;background:#522653;color:#fff;font:inherit;font-size:16px}
+  .sm-main{min-height:0}
+  .sm-app-thread .sm-main{display:none}
+  .sm-panel{width:100%;min-width:0;min-height:0;flex:1;border-left:0}
+  .sm-top{padding:6px 12px;align-items:center;gap:10px;flex-wrap:wrap}
+  .sm-top h1{font-size:16px;min-width:0}
+  .sm-top .sm-sub,.sm-top .sm-identity,.sm-live{display:none}
+  .sm-panel-top{padding:6px 12px;align-items:center}
+  .sm-panel-back{display:inline-flex;align-items:center;justify-content:center;width:40px;min-height:40px;padding:0;border:0;font-size:22px}
+  .sm-panel-close,.sm-panel-expand{display:none}
+  .sm-main .sm-page,.sm-panel-body{min-height:0;padding:8px 12px 20px;overscroll-behavior:contain}
+  .sm-msg{padding:8px 0;gap:10px}
+  .sm-msg-body,.sm-card-v,.sm-field,.sm-att,.sm-context,.sm-file-card{overflow-wrap:anywhere}
+  .sm-text,.sm-blocks,.sm-field,.sm-att-text,.sm-att-pretext{font-size:16px;line-height:24px}
+  .sm-name{font-size:14px}
+  .sm-time{font-size:12px}
+  .sm-composer,.sm-panel .sm-composer{padding:8px 12px calc(10px + env(safe-area-inset-bottom))}
+  .sm-composer-text{font-size:16px;line-height:22px;resize:none;max-height:30vh}
+  .sm-composer-lock input{font-size:16px;min-height:40px;flex:1;min-width:0}
+  .sm-composer-lock>span:first-child{width:100%}
+  .sm-mentions,.sm-panel .sm-mentions{left:12px;right:12px;max-height:min(260px,40vh)}
+  .sm-mention{min-height:40px}
+  .sm-btn,.sm-select,.sm-reaction,.sm-prompt,.sm-replies,.sm-back,.sm-icon-btn,.sm-composer-send,.sm-composer-lock .sm-lock-go,.sm-lock-out{min-height:40px;display:inline-flex;align-items:center}
+  .sm-btn,.sm-select{max-width:100%;white-space:normal}
+  .sm-replies{flex-wrap:wrap;gap:4px 8px}
+  .sm-section-split{flex-wrap:wrap}
+  .sm-section-main{flex-basis:100%}
+  .sm-section-acc,.sm-context>*{min-width:0;max-width:100%}
+  .sm-att-img,.sm-file-img,.sm-video-thumb{max-width:100%;height:auto}
+  .sm-file-card,.sm-unsupported{max-width:100%}
+  .sm-file-card>div:last-child{min-width:0}
+  .sm-cards{gap:10px}
+  .sm-card{flex:1 1 calc(50% - 5px);min-width:0}
+  .sm-table,.sm-table tbody{display:block;width:100%}
+  .sm-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;padding:12px 0;border-bottom:1px solid #e8e8e8}
+  .sm-table tr:first-child{display:none}
+  .sm-table td{display:block;padding:0;border:0;overflow-wrap:anywhere}
+  .sm-table td:before{content:attr(data-label);display:block;font-size:11px;color:#616061;text-transform:uppercase;letter-spacing:.4px}
+  .sm-table td a{display:inline-flex;align-items:center;min-height:40px}
+  .sm-shot{width:100%;padding:12px}
+}
 `;
 
 function ctxOf(store: Store): RenderContext {
@@ -546,7 +609,14 @@ function sidebar(store: Store, opts: RenderOptions, active?: string): string {
         `<a class="${c.id === active ? "sm-active" : ""}" href="${channelHref(c.id, opts)}">${escapeHtml(channelIcon(c))} ${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</a>`,
     )
     .join("");
-  return `<nav class="sm-side"><div class="sm-side-title"><a href="${homeHref(opts)}" style="color:#fff">${escapeHtml(store.team.name)}</a><span class="sm-side-team">${escapeHtml(store.team.id)} · slack-mock</span></div><div class="sm-side-h">Channels</div>${links}</nav>`;
+  const options = channels
+    .map(
+      (c) =>
+        `<option value="${escapeHtml(channelHref(c.id, opts))}"${c.id === active ? " selected" : ""}>${escapeHtml(channelLabel(store, c))}</option>`,
+    )
+    .join("");
+  const mobile = `<div class="sm-mobile-bar"><div class="sm-mobile-heading"><a class="sm-mobile-workspace" href="${homeHref(opts)}">${escapeHtml(store.team.name)}</a>${identityChip(store, opts)}</div><select class="sm-channel-switch" aria-label="Channel"><option value="${homeHref(opts)}"${active ? "" : " selected"}>Workspace</option>${options}</select></div>`;
+  return `${mobile}<nav class="sm-side"><div class="sm-side-title"><a href="${homeHref(opts)}" style="color:#fff">${escapeHtml(store.team.name)}</a><span class="sm-side-team">${escapeHtml(store.team.id)} · slack-mock</span></div><div class="sm-side-h">Channels</div>${links}</nav>`;
 }
 
 interface ShellParts {
@@ -569,7 +639,7 @@ function shell(store: Store, opts: RenderOptions, parts: ShellParts): string {
       ? `<meta http-equiv="refresh" content="${Math.max(1, Math.floor(opts.refreshSec))}">`
       : "";
   const style = opts.screenshot ? "" : ` style="--sm-panel-w:${panelWidth(opts)}"`;
-  const head = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(parts.title)}</title>${refresh}<style>${CSS}</style></head>`;
+  const head = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${escapeHtml(parts.title)}</title>${refresh}<style>${CSS}</style></head>`;
   if (opts.screenshot) {
     return `${head}<body><div class="sm-shot">${parts.header}<div class="sm-page">${parts.main}</div></div></body></html>`;
   }
@@ -612,14 +682,14 @@ function indexView(store: Store, opts: RenderOptions): string {
   const channelRows = channels
     .map((c) => {
       const count = store.messages.get(c.id)?.length ?? 0;
-      return `<tr><td><a href="${channelHref(c.id, opts)}">${escapeHtml(channelIcon(c))} ${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</a></td><td><span class="sm-tag">${channelKind(c)}</span></td><td class="sm-muted">${c.id}</td><td>${count}</td></tr>`;
+      return `<tr><td data-label="Name"><a href="${channelHref(c.id, opts)}">${escapeHtml(channelIcon(c))} ${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</a></td><td data-label="Type"><span class="sm-tag">${channelKind(c)}</span></td><td class="sm-muted" data-label="Id">${c.id}</td><td data-label="Messages">${count}</td></tr>`;
     })
     .join("");
 
   const userRows = [...store.users.values()]
     .map(
       (u) =>
-        `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.real_name)}</td><td class="sm-muted">${escapeHtml(u.profile.title ?? "")}</td><td class="sm-muted">${escapeHtml(u.profile.email ?? "")}</td><td class="sm-muted">${u.id}</td><td>${u.is_bot ? `<span class="sm-tag">bot</span>` : ""}</td></tr>`,
+        `<tr><td data-label="Name">${escapeHtml(u.name)}</td><td data-label="Real name">${escapeHtml(u.real_name)}</td><td class="sm-muted" data-label="Title">${escapeHtml(u.profile.title ?? "")}</td><td class="sm-muted" data-label="Email">${escapeHtml(u.profile.email ?? "")}</td><td class="sm-muted" data-label="Id">${u.id}</td><td data-label="Type">${u.is_bot ? `<span class="sm-tag">bot</span>` : ""}</td></tr>`,
     )
     .join("");
 
@@ -750,6 +820,11 @@ function uiScript(store: Store, opts: RenderOptions, closeUrl?: string, autoScro
     ? `document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!/^(TEXTAREA|INPUT|SELECT)$/.test(document.activeElement&&document.activeElement.tagName||""))location.href=${JSON.stringify(closeUrl)}});`
     : "";
   const body = `(function(){
+var viewport=window.visualViewport;
+function fitViewport(){if(viewport&&viewport.scale!==1)return;var style=document.documentElement.style;style.setProperty("--sm-viewport-height",(viewport?viewport.height:innerHeight)+"px");style.setProperty("--sm-viewport-top",(viewport?viewport.offsetTop:0)+"px")}
+fitViewport();addEventListener("resize",fitViewport);
+if(viewport){viewport.addEventListener("resize",fitViewport);viewport.addEventListener("scroll",fitViewport)}
+document.addEventListener("change",function(e){if(e.target.classList.contains("sm-channel-switch"))location.href=e.target.value});
 var W="sm-panel-w",DEF=${JSON.stringify(panelWidth(opts))},FIXED=${opts.panelWidth ? "true" : "false"};
 ${autoScroll ? 'function scroll(){document.querySelectorAll(".sm-scroll").forEach(function(el){el.scrollTop=el.scrollHeight})}\nscroll();addEventListener("load",scroll);' : ""}
 var handle=document.querySelector(".sm-resize");
@@ -785,7 +860,7 @@ addEventListener("storage",function(e){if(e.key===IK){currentIdentity=e.newValue
 lockUi();
 var pending=null;
 function refresh(){if(pending)return;pending=setTimeout(function(){pending=null;fetch(location.href,{headers:{accept:"text/html"},credentials:"same-origin"}).then(function(r){return r.ok?r.text():Promise.reject(r.status)}).then(apply).catch(function(){})},120)}
-function apply(html){var doc=new DOMParser().parseFromString(html,"text/html");[".sm-side",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});identityUi();if(doc.title)document.title=doc.title}
+function apply(html){var doc=new DOMParser().parseFromString(html,"text/html");[".sm-side",".sm-channel-switch",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});identityUi();if(doc.title)document.title=doc.title}
 if(LIVE&&window.EventSource){
  var box0=document.querySelector(".sm-composer"),pm=/^\\/c\\/([^/]+)/.exec(location.pathname),chan=box0?box0.dataset.channel:(pm?decodeURIComponent(pm[1]):null);
  if(chan){
@@ -931,7 +1006,7 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
   }
 
   const expand = threadHref(channel.id, ts, opts, { full: true });
-  const panel = `<aside class="sm-panel"><div class="sm-panel-top"><div class="sm-panel-heading"><h2 class="sm-panel-title">Thread</h2><div class="sm-panel-sub">${escapeHtml(label)}</div></div><a class="sm-panel-expand" href="${expand}" title="Expand thread">⤢</a><a class="sm-panel-close" href="${close}" title="Close thread">×</a></div><a class="sm-panel-back" href="${close}">← ${escapeHtml(label)}</a><div class="sm-panel-body sm-scroll">${body}</div>${composer(store, opts, channel, ts)}</aside>`;
+  const panel = `<aside class="sm-panel"><div class="sm-panel-top"><a class="sm-panel-back" href="${close}" aria-label="Back to ${escapeHtml(label)}">←</a><div class="sm-panel-heading"><h2 class="sm-panel-title">Thread</h2><div class="sm-panel-sub">${escapeHtml(label)}</div></div><a class="sm-panel-expand" href="${expand}" title="Expand thread">⤢</a><a class="sm-panel-close" href="${close}" title="Close thread">×</a></div><div class="sm-panel-body sm-scroll">${body}</div>${composer(store, opts, channel, ts)}</aside>`;
   return shell(store, opts, {
     title,
     header: channelHeader(store, opts, channel),

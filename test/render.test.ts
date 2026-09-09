@@ -422,7 +422,9 @@ describe("renderPage", () => {
     expect(html).toContain(`<aside class="sm-panel">`);
     expect(html).toContain(`<h2 class="sm-panel-title">Thread</h2>`);
     expect(html).toContain(`<a class="sm-panel-close" href="/c/C0GEN" title="Close thread">×</a>`);
-    expect(html).toContain(`<a class="sm-panel-back" href="/c/C0GEN">← #general</a>`);
+    expect(html).toContain(
+      `<a class="sm-panel-back" href="/c/C0GEN" aria-label="Back to #general">←</a>`,
+    );
     // The open thread's parent is highlighted in the channel column.
     expect(html).toContain("sm-msg-open");
     // Parent shown twice: once in the channel column, once in the panel.
@@ -618,6 +620,20 @@ describe("renderPage", () => {
     const { store, channel } = workspace();
     const html = renderPage(store, { kind: "channel", channel: channel.id }, { writeGated: true });
     expect(html).toContain(`<details class="sm-identity" hidden>`);
+  });
+
+  test("phone pages include responsive CSS, safe areas and a channel switcher", () => {
+    const { store, channel, human } = workspace();
+    const html = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
+    expect(html).toContain("@media (max-width:699px)");
+    expect(html).toContain("env(safe-area-inset-bottom)");
+    expect(html).toContain(
+      '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
+    );
+    expect(html).toContain('<div class="sm-mobile-bar">');
+    expect(html).toContain('<select class="sm-channel-switch" aria-label="Channel">');
+    expect(html).toContain('<option value="/c/C0GEN" selected>#general</option>');
+    expect(html).toContain('aria-label="Back to #general"');
   });
 
   test("scroll containers are pinned to the newest message", () => {

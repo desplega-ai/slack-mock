@@ -48,6 +48,10 @@ Use the avatar and name chip to choose who posts from every composer.
 The browser remembers your choice across channels and threads.
 Open `/c/support?as=taras` to select Taras. The page removes `as` from the URL after selection.
 Public workspaces show the chip after presenter sign-in.
+Below 700px, the sidebar becomes a top bar with a channel switcher.
+Threads fill the phone width. The composer follows the visible viewport and includes padding for the iOS home bar.
+Capture the phone layout with `bun test test/phone-ui.test.ts` (requires Chrome).
+The PNG is saved to `test/artifacts/phone-support-thread.png` at 390 x 844.
 
 ## In tests
 
