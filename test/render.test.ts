@@ -627,8 +627,8 @@ describe("renderPage", () => {
     const message = store.addMessage({ channel: channel.id, user: "U0ALICE", text: "Start here" });
     const html = renderPage(store, { kind: "channel", channel: channel.id });
     expect(message.reply_count).toBeUndefined();
-    expect(html).toContain(`href="/c/${channel.id}/t/${message.ts}#reply"`);
-    expect(html).toContain('aria-label="Reply in thread"');
+    expect(html).toContain(`href="/c/${channel.id}/t/${message.ts}"`);
+    expect(html).toContain('aria-label="Open thread"');
     expect(html).toContain('class="sm-add-reaction"');
     expect(html).toContain('aria-haspopup="dialog" aria-controls="sm-reaction-picker"');
     expect(html).toContain('<dialog class="sm-reaction-picker"');
@@ -637,8 +637,8 @@ describe("renderPage", () => {
   test("thread reply actions target the parent thread instead of nesting replies", () => {
     const { store, channel, human, reply } = workspace();
     const html = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
-    expect(html).toContain(`href="/c/${channel.id}/t/${human.ts}#reply"`);
-    expect(html).not.toContain(`href="/c/${channel.id}/t/${reply.ts}#reply"`);
+    expect(html).toContain(`href="/c/${channel.id}/t/${human.ts}"`);
+    expect(html).not.toContain(`href="/c/${channel.id}/t/${reply.ts}"`);
   });
 
   test("reaction buttons carry membership and stay disabled before presenter sign-in", () => {

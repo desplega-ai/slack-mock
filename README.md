@@ -49,7 +49,9 @@ The browser remembers your choice across channels and threads.
 Open `/c/support?as=taras` to select Taras. The page removes `as` from the URL after selection.
 Public workspaces show the chip after presenter sign-in.
 Optional user status text appears beside names in the users table and the chip's user list.
-Each message offers **React** and **Reply in thread**, including messages without replies.
+Each message offers reaction and thread icons, including messages without replies.
+The thread icon opens the thread without focusing the composer.
+Icons stay visible on phones and touch screens. Desktop shows them on hover or keyboard focus.
 Choose an emoji from the picker beside the message, or select an existing reaction to add or remove your own.
 Reactions use the identity in the chip and require presenter sign-in in public workspaces.
 Below 700px, the sidebar becomes a top bar with a channel switcher.

@@ -244,7 +244,7 @@ a:hover{text-decoration:underline}
 .sm-reaction-count{font-weight:700;font-size:12px}
 .sm-message-actions{position:absolute;right:8px;top:-8px;display:flex;gap:2px;padding:3px;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 1px 4px #0001;opacity:0;z-index:2}
 .sm-msg:hover .sm-message-actions,.sm-msg:focus-within .sm-message-actions{opacity:1}
-.sm-message-actions button,.sm-message-actions a{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:32px;padding:4px 8px;border:0;border-radius:4px;background:#fff;color:#616061;font:inherit;font-size:12px;cursor:pointer;text-decoration:none}
+.sm-message-actions button,.sm-message-actions a{display:inline-flex;align-items:center;justify-content:center;width:32px;min-height:32px;padding:4px;border:0;border-radius:4px;background:#fff;color:#616061;font:inherit;font-size:12px;cursor:pointer;text-decoration:none}
 .sm-message-actions button:hover,.sm-message-actions a:hover{background:#f0f0f0;color:#1d1c1d}
 .sm-message-actions button:disabled{opacity:.5;cursor:default}
 .sm-message-actions svg{width:18px;height:18px;flex:none}
@@ -296,7 +296,7 @@ a:hover{text-decoration:underline}
 }
 @media (max-width:699px),(hover:none),(pointer:coarse){
   .sm-message-actions{position:static;opacity:1;justify-content:flex-start;gap:6px;margin-top:6px;padding:0;border:0;box-shadow:none;background:none}
-  .sm-message-actions button,.sm-message-actions a{min-height:40px;background:none}
+  .sm-message-actions button,.sm-message-actions a{width:40px;min-height:40px;background:none}
 }
 @media (max-width:699px){
   html,body{overflow:hidden;overscroll-behavior:none}
@@ -519,7 +519,7 @@ function messageActions(m: SlackMessage, opts: RenderOptions): string {
   const thread = m.thread_ts ?? m.ts;
   const reactIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="12" r="8"/><path d="M7 14c2 3 6 3 8 0M8 9h.01M14 9h.01M20 2v6M17 5h6" stroke-linecap="round"/></svg>`;
   const replyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z" stroke-linejoin="round"/><path d="M7 9h10M7 13h6" stroke-linecap="round"/></svg>`;
-  return `<div class="sm-message-actions"><button type="button" class="sm-add-reaction" aria-label="Add reaction" aria-haspopup="dialog" aria-controls="sm-reaction-picker" title="Add reaction"${opts.writeGated ? " disabled" : ""}>${reactIcon}<span>React</span></button><a class="sm-reply-action" href="${threadHref(m.channel, thread, opts)}#reply" data-thread="${escapeHtml(thread)}" aria-label="Reply in thread" title="Reply in thread">${replyIcon}<span>Reply in thread</span></a></div><div class="sm-action-error" role="alert" hidden></div>`;
+  return `<div class="sm-message-actions"><button type="button" class="sm-add-reaction" aria-label="Add reaction" aria-haspopup="dialog" aria-controls="sm-reaction-picker" title="Add reaction"${opts.writeGated ? " disabled" : ""}>${reactIcon}</button><a class="sm-reply-action" href="${threadHref(m.channel, thread, opts)}" data-thread="${escapeHtml(thread)}" aria-label="Open thread" title="Open thread">${replyIcon}</a></div><div class="sm-action-error" role="alert" hidden></div>`;
 }
 
 function reactionPicker(): string {
@@ -976,14 +976,12 @@ function react(message,name){
   return r.json().then(function(data){if(!r.ok&&data.error!=="already_reacted"&&data.error!=="no_reaction")throw new Error("Could not save the reaction. Try again.")})
  }).then(function(){reactionBusy=false;reactionUi();closeReactions(true);refresh()}).catch(function(e){reactionBusy=false;reactionUi();if(err){if(err.closest("dialog")&&!reactionDialog.open)err=message.querySelector(".sm-action-error");err.textContent=e.message==="Sign in to react."?e.message:"Could not save the reaction. Try again.";err.hidden=false;positionReactions()}})
 }
-function focusReply(){var box=document.querySelector(".sm-composer[data-thread]");if(!box)return;var target=box.querySelector(".sm-composer-text");if(target.disabled)target=box.querySelector(".sm-lock-user");if(target)target.focus()}
 document.addEventListener("click",function(e){
  var add=e.target.closest(".sm-add-reaction");if(add&&!add.disabled){var message=add.closest(".sm-msg");if(reactionDialog.open&&reactionTarget===message){closeReactions(true);return}reactionTarget=message;reactionScope=message.closest(".sm-page,.sm-panel-body");var err=reactionDialog.querySelector(".sm-action-error");err.hidden=true;err.textContent="";if(!reactionDialog.open)reactionDialog.show();positionReactions();return}
  var choice=e.target.closest("button[data-reaction]");if(choice&&!choice.disabled){react(choice.closest(".sm-reaction-picker")?reactionTarget:choice.closest(".sm-msg"),choice.dataset.reaction);return}
  if(e.target.closest(".sm-reaction-close")){closeReactions(true);return}
- var reply=e.target.closest(".sm-reply-action"),box=document.querySelector(".sm-composer[data-thread]");if(reply&&box&&box.dataset.thread===reply.dataset.thread&&box.dataset.channel===reply.closest(".sm-msg").dataset.channel){e.preventDefault();focusReply()}
+ var reply=e.target.closest(".sm-reply-action"),box=document.querySelector(".sm-composer[data-thread]");if(reply&&box&&box.dataset.thread===reply.dataset.thread&&box.dataset.channel===reply.closest(".sm-msg").dataset.channel)e.preventDefault()
 });
-if(location.hash==="#reply")focusReply();
 function send(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim(),user=identity();if(!text||t.disabled||!user)return;var body={channel:box.dataset.channel,user:user.id,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:authHeaders({"content-type":"application/json"}),body:JSON.stringify(body)}).then(function(r){t.disabled=false;if(r.status===401||r.status===403){setCred("");lockUi();var err=box.querySelector(".sm-err");if(err)err.textContent="Not signed in, or the credential changed. Sign in to post.";return}if(!r.ok)throw new Error("send failed "+r.status);t.value="";if(LIVE)refresh();else location.reload()}).catch(function(){t.disabled=false})}
 document.querySelectorAll(".sm-composer").forEach(function(box){
  var ta=box.querySelector(".sm-composer-text"),menu=box.querySelector(".sm-mentions"),items=[],active=0;
