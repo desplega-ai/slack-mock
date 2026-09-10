@@ -20,6 +20,7 @@ export interface SlackUser {
     image_72?: string;
     team: string;
     title?: string;
+    status_text?: string;
   };
 }
 

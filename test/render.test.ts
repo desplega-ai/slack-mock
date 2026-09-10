@@ -374,6 +374,8 @@ describe("renderPage", () => {
     expect(html).toContain("general");
     expect(html).toContain("alice@example.com");
     expect(html).toContain(`href="/c/C0GEN"`);
+    expect(html).toContain(`class="sm-identity"`);
+    expect(html).toContain(`id="sm-users"`);
   });
 
   test("channel page shows the top-level message, reply count and ephemerals", () => {
@@ -420,7 +422,9 @@ describe("renderPage", () => {
     expect(html).toContain(`<aside class="sm-panel">`);
     expect(html).toContain(`<h2 class="sm-panel-title">Thread</h2>`);
     expect(html).toContain(`<a class="sm-panel-close" href="/c/C0GEN" title="Close thread">×</a>`);
-    expect(html).toContain(`<a class="sm-panel-back" href="/c/C0GEN">← #general</a>`);
+    expect(html).toContain(
+      `<a class="sm-panel-back" href="/c/C0GEN" aria-label="Back to #general">←</a>`,
+    );
     // The open thread's parent is highlighted in the channel column.
     expect(html).toContain("sm-msg-open");
     // Parent shown twice: once in the channel column, once in the panel.
@@ -572,10 +576,7 @@ describe("renderPage", () => {
     const { store, channel, human } = workspace();
     const channelHtml = renderPage(store, { kind: "channel", channel: channel.id });
     expect(channelHtml).toContain(`<div class="sm-composer" data-channel="C0GEN">`);
-    expect(channelHtml).toContain(`<select class="sm-composer-user"`);
-    expect(channelHtml).toContain(`<option value="U0ALICE" selected>Alice Example</option>`);
-    // Bots never appear in the composer.
-    expect(channelHtml).not.toContain(`<option value="U0BOT"`);
+    expect(channelHtml).not.toContain("sm-composer-user");
     expect(channelHtml).toContain(`<textarea class="sm-composer-text"`);
     expect(channelHtml).toContain("Message #general");
     expect(channelHtml).toContain("Enter to send, Shift+Enter for a new line, @name to mention");
@@ -593,6 +594,110 @@ describe("renderPage", () => {
       { threadView: "full" },
     );
     expect(fullHtml).toContain(`data-thread="${human.ts}"`);
+  });
+
+  test("posting identity appears in workspace, channel and full-thread headers", () => {
+    const { store, channel, human } = workspace();
+    const bob = store.addUser({ name: "bob", real_name: "Bob Example" });
+    const indexHtml = renderPage(store, { kind: "index" });
+    const channelHtml = renderPage(store, { kind: "channel", channel: channel.id });
+    const fullThreadHtml = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { threadView: "full" },
+    );
+    for (const html of [indexHtml, channelHtml, fullThreadHtml]) {
+      expect(html).toContain(`<details class="sm-identity">`);
+      expect(html).toContain(`aria-label="Posting as Alice Example"`);
+      expect(html).toContain(`<ul class="sm-identity-list">`);
+      expect(html).toContain(`data-user="U0ALICE"`);
+      expect(html).toContain(`data-user="${bob.id}"`);
+      expect(html).not.toContain(`data-user="U0BOT"`);
+    }
+  });
+
+  test("posting identity stays hidden until presenter sign-in", () => {
+    const { store, channel } = workspace();
+    const html = renderPage(store, { kind: "channel", channel: channel.id }, { writeGated: true });
+    expect(html).toContain(`<details class="sm-identity" hidden>`);
+  });
+
+  test("messages without replies offer an action to start a thread", () => {
+    const { store, channel } = workspace();
+    const message = store.addMessage({ channel: channel.id, user: "U0ALICE", text: "Start here" });
+    const html = renderPage(store, { kind: "channel", channel: channel.id });
+    expect(message.reply_count).toBeUndefined();
+    expect(html).toContain(`href="/c/${channel.id}/t/${message.ts}"`);
+    expect(html).toContain('aria-label="Open thread"');
+    expect(html).toContain('class="sm-add-reaction"');
+    expect(html).toContain('aria-haspopup="dialog" aria-controls="sm-reaction-picker"');
+    expect(html).toContain('<dialog class="sm-reaction-picker"');
+  });
+
+  test("thread reply actions target the parent thread instead of nesting replies", () => {
+    const { store, channel, human, reply } = workspace();
+    const html = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
+    expect(html).toContain(`href="/c/${channel.id}/t/${human.ts}"`);
+    expect(html).not.toContain(`href="/c/${channel.id}/t/${reply.ts}"`);
+  });
+
+  test("reaction buttons carry membership and stay disabled before presenter sign-in", () => {
+    const { store, channel, human } = workspace();
+    store.addReaction(channel.id, human.ts, "eyes", "U0ALICE");
+    const html = renderPage(store, { kind: "channel", channel: channel.id }, { writeGated: true });
+    expect(html).toContain('data-reaction="eyes" data-users="[&quot;U0ALICE&quot;]"');
+    expect(html).toContain('aria-label="Add :eyes: reaction, 1 person reacted"');
+    expect(html).toContain('aria-pressed="false" disabled');
+    expect(html).toContain('title="Add reaction" disabled');
+    store.addReaction(channel.id, human.ts, "eyes", "U0BOT");
+    const updated = renderPage(store, { kind: "channel", channel: channel.id });
+    expect(updated).toContain('aria-label="Add :eyes: reaction, 2 people reacted"');
+  });
+
+  test("screenshot and ephemeral messages keep reactions read-only", () => {
+    const { store, channel, human } = workspace();
+    const shot = renderPage(
+      store,
+      { kind: "thread", channel: channel.id, ts: human.ts },
+      { screenshot: true },
+    );
+    expect(shot).not.toContain('class="sm-message-actions"');
+    expect(shot).not.toContain('<dialog class="sm-reaction-picker"');
+    const ephemeral = store.ephemerals[0]!;
+    ephemeral.reactions = [{ name: "eyes", users: ["U0ALICE"], count: 1 }];
+    const html = renderPage(store, { kind: "channel", channel: channel.id });
+    const ephemeralHtml = html.slice(
+      html.indexOf('class="sm-msg sm-msg-eph"'),
+      html.indexOf('<div class="sm-composer"'),
+    );
+    expect(ephemeralHtml).toContain('<span class="sm-reaction"');
+    expect(ephemeralHtml).not.toContain('class="sm-add-reaction"');
+  });
+
+  test("user status appears after names in the table and identity list as escaped text", () => {
+    const { store, channel } = workspace();
+    store.addUser({ name: "eze", real_name: "Eze", status: "On a call <&>" });
+    const status = '<span class="sm-user-status">On a call &lt;&amp;&gt;</span>';
+    const indexHtml = renderPage(store, { kind: "index" });
+    const channelHtml = renderPage(store, { kind: "channel", channel: channel.id });
+    expect(indexHtml).toContain(`<td data-label="Name">eze${status}</td>`);
+    expect(channelHtml).toContain(`<span>Eze${status}</span>`);
+    expect(indexHtml).not.toContain("On a call <&>");
+    expect(channelHtml).not.toContain("On a call <&>");
+  });
+
+  test("phone pages include responsive CSS, safe areas and a channel switcher", () => {
+    const { store, channel, human } = workspace();
+    const html = renderPage(store, { kind: "thread", channel: channel.id, ts: human.ts });
+    expect(html).toContain("@media (max-width:699px)");
+    expect(html).toContain("env(safe-area-inset-bottom)");
+    expect(html).toContain(
+      '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
+    );
+    expect(html).toContain('<div class="sm-mobile-bar">');
+    expect(html).toContain('<select class="sm-channel-switch" aria-label="Channel">');
+    expect(html).toContain('<option value="/c/C0GEN" selected>#general</option>');
+    expect(html).toContain('aria-label="Back to #general"');
   });
 
   test("scroll containers are pinned to the newest message", () => {

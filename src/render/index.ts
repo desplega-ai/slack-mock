@@ -70,7 +70,7 @@ a:hover{text-decoration:underline}
 .sm-side a:hover{background:#522653;color:#fff;text-decoration:none}
 .sm-side a.sm-active,.sm-side a.sm-active:hover{background:#1164a3;color:#fff}
 .sm-side-title a:hover{background:none;text-decoration:underline}
-.sm-main{flex:1;min-width:280px;display:flex;flex-direction:column;overflow:hidden}
+.sm-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .sm-shot{width:760px;padding:16px;background:#fff}
 .sm-top{border-bottom:1px solid #e8e8e8;padding:12px 20px;display:flex;align-items:baseline;gap:12px;flex:none}
 .sm-top h1{font-size:18px;font-weight:900;margin:0}
@@ -101,8 +101,6 @@ a:hover{text-decoration:underline}
 .sm-composer-box{border:1px solid #bbb;border-radius:8px;padding:8px 10px;background:#fff}
 .sm-composer-box:focus-within{border-color:#1264a3;box-shadow:0 0 0 1px #1264a3}
 .sm-composer-row{display:flex;align-items:center;gap:8px;margin-top:6px}
-.sm-composer-user{flex:0 1 auto;min-width:0;max-width:170px;border:0;border-radius:4px;background:#f0f0f0;color:#1d1c1d;font-family:inherit;font-size:12px;padding:4px 6px}
-.sm-composer-user:hover{background:#e8e8e8}
 .sm-composer-text{display:block;width:100%;border:0;outline:none;resize:vertical;font-family:inherit;font-size:15px;line-height:20px;color:#1d1c1d;padding:0;background:none}
 .sm-composer-send{flex:none;margin-left:auto;border:0;border-radius:4px;background:#007a5a;color:#fff;font-family:inherit;font-weight:700;font-size:13px;padding:6px 14px;cursor:pointer}
 .sm-composer-send:hover{background:#148567;color:#fff}
@@ -116,25 +114,30 @@ a:hover{text-decoration:underline}
 .sm-mention-name{font-weight:700}
 .sm-mention-real{color:#616061;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-.sm-side a,.sm-btn,.sm-select,.sm-reaction,.sm-file-card,.sm-prompt,.sm-replies,.sm-back,.sm-panel-close,.sm-panel-expand,.sm-composer-send,.sm-composer-user,.sm-top-actions a{cursor:pointer}
+.sm-side a,.sm-btn,.sm-select,.sm-reaction,.sm-file-card,.sm-prompt,.sm-replies,.sm-back,.sm-panel-close,.sm-panel-expand,.sm-composer-send,.sm-top-actions a{cursor:pointer}
 .sm-composer-text{cursor:text}
 .sm-badge,.sm-time,.sm-daydiv,.sm-pill,.sm-emoji-name,.sm-avatar,.sm-name,.sm-composer-hint,.sm-unsupported,.sm-tag,.sm-card{cursor:default}
-.sm-top-actions{margin-left:auto;display:flex;gap:12px;align-items:baseline;flex:none}
+.sm-top-actions{margin-left:auto;display:flex;gap:12px;align-items:center;flex:none}
 .sm-top-actions a{font-size:13px;font-weight:700;color:#616061}
 .sm-top-actions a:hover{color:#1264a3}
-@media (max-width:900px){
-  .sm-side{display:none}
-  .sm-app-thread .sm-main{display:none}
-  .sm-panel{width:100%;min-width:0;border-left:0}
-  .sm-panel-back{display:block}
-  .sm-panel-expand,.sm-resize{display:none}
-}
+.sm-identity{position:relative}
+.sm-identity[hidden]{display:none}
+.sm-identity summary{display:flex;align-items:center;gap:6px;list-style:none;border:1px solid #ddd;border-radius:16px;padding:2px 8px 2px 3px;font-size:13px;font-weight:700;cursor:pointer}
+.sm-identity summary::-webkit-details-marker{display:none}
+.sm-identity summary:hover{background:#f8f8f8}
+.sm-identity-avatar{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;flex:none}
+.sm-identity-list{position:absolute;right:0;top:100%;z-index:10;width:max-content;min-width:190px;max-width:280px;margin:6px 0 0;padding:4px;list-style:none;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.16)}
+.sm-identity-list button{display:flex;align-items:center;gap:8px;width:100%;border:0;border-radius:4px;padding:6px;background:#fff;color:#1d1c1d;font:inherit;text-align:left;cursor:pointer}
+.sm-identity-list button:hover,.sm-identity-list button:focus{background:#f0f0f0;outline:none}
+.sm-identity-user{font-size:12px;color:#616061;margin-left:auto}
+.sm-user-status{margin-left:6px;font-size:12px;font-weight:400;color:#616061}
+.sm-mobile-bar{display:none}
 
 .sm-daydiv{display:flex;align-items:center;gap:10px;margin:14px 0 8px}
 .sm-daydiv:before,.sm-daydiv:after{content:"";flex:1;height:1px;background:#e8e8e8}
 .sm-daydiv span{border:1px solid #e8e8e8;border-radius:12px;padding:2px 12px;font-size:13px;font-weight:700;color:#454245;background:#fff}
 
-.sm-msg{display:flex;gap:12px;padding:8px 8px;border-radius:6px}
+.sm-msg{position:relative;display:flex;gap:12px;padding:8px 8px;border-radius:6px}
 .sm-msg:hover{background:#f8f8f8}
 .sm-msg-eph{background:#fffbe6}
 .sm-msg-eph:hover{background:#fff7d1}
@@ -157,7 +160,7 @@ a:hover{text-decoration:underline}
 .sm-msg-new{animation:sm-flash 2.4s ease-out}
 .sm-msg-changed{animation:sm-flash-soft .9s ease-out}
 @media (prefers-reduced-motion:reduce){.sm-msg-new,.sm-msg-changed{animation:none}}
-.sm-live{font-size:11px;font-weight:600;color:#2eb67d;margin-left:10px;vertical-align:middle}
+.sm-live{font-size:11px;font-weight:600;color:#2eb67d;margin-left:10px;vertical-align:middle;white-space:nowrap}
 .sm-live-off{color:#e8912d}
 .sm-composer-lock{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 2px;font-size:13px;color:#616061}
 .sm-composer-lock[hidden]{display:none}
@@ -236,7 +239,24 @@ a:hover{text-decoration:underline}
 .sm-reactions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .sm-reaction{display:inline-flex;align-items:center;gap:5px;background:#f0f0f0;border:1px solid #f0f0f0;border-radius:12px;padding:1px 8px;font-size:12px;line-height:18px;color:#454245}
 .sm-reaction:hover{background:#e8f5fa;border-color:#1264a3;color:#1d1c1d}
+.sm-reaction[aria-pressed="true"]{background:#e8f5fa;border-color:#1264a3;color:#1264a3}
+.sm-reaction:disabled{cursor:default}
 .sm-reaction-count{font-weight:700;font-size:12px}
+.sm-message-actions{position:absolute;right:8px;top:-8px;display:flex;gap:2px;padding:3px;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 1px 4px #0001;opacity:0;z-index:2}
+.sm-msg:hover .sm-message-actions,.sm-msg:focus-within .sm-message-actions{opacity:1}
+.sm-message-actions button,.sm-message-actions a{display:inline-flex;align-items:center;justify-content:center;width:32px;min-height:32px;padding:4px;border:0;border-radius:4px;background:#fff;color:#616061;font:inherit;font-size:12px;cursor:pointer;text-decoration:none}
+.sm-message-actions button:hover,.sm-message-actions a:hover{background:#f0f0f0;color:#1d1c1d}
+.sm-message-actions button:disabled{opacity:.5;cursor:default}
+.sm-message-actions svg{width:18px;height:18px;flex:none}
+.sm-action-error{font-size:13px;color:#a12622;margin-top:6px}
+.sm-reaction-picker{position:fixed;inset:auto;top:0;left:0;margin:0;z-index:100;width:300px;max-width:calc(100vw - 24px);max-height:calc(var(--sm-viewport-height,100dvh) - 24px);padding:16px;border:1px solid #ddd;border-radius:12px;color:#1d1c1d;box-shadow:0 8px 32px #0003}
+.sm-reaction-picker-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sm-reaction-picker h2{font-size:16px;margin:0}
+.sm-reaction-picker button{min-width:40px;min-height:40px;border:0;border-radius:6px;background:#fff;font:inherit;cursor:pointer}
+.sm-reaction-picker button:hover,.sm-reaction-picker button:focus-visible{background:#f0f0f0}
+.sm-reaction-picker button:disabled{opacity:.5;cursor:default}
+.sm-reaction-choices{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.sm-reaction-choices button{font-size:24px}
 .sm-file-card:hover{background:#f8f8f8}
 
 .sm-replies{display:inline-flex;align-items:center;gap:8px;margin-top:4px;font-size:13px;font-weight:700;color:#1264a3}
@@ -261,6 +281,79 @@ a:hover{text-decoration:underline}
 .sm-table td{padding:6px 10px 6px 0;border-bottom:1px solid #f2f2f2;vertical-align:top}
 .sm-tag{display:inline-block;background:#f0f0f0;color:#454245;border-radius:10px;padding:0 8px;font-size:11px;font-weight:700}
 .sm-muted{color:#616061}
+
+@media (min-width:700px) and (max-width:1000px){
+  .sm-side{width:180px}
+  .sm-panel{min-width:300px;max-width:calc(100% - 360px)}
+  .sm-top{padding:8px 12px;gap:6px;align-items:center;flex-wrap:wrap}
+  .sm-top h1{min-width:0;overflow-wrap:anywhere}
+  .sm-top .sm-sub{display:none}
+  .sm-top-actions{min-width:0;max-width:100%;flex-shrink:1}
+  .sm-identity{min-width:0;max-width:100%}
+  .sm-identity-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sm-replies{flex-wrap:wrap}
+  .sm-att-img,.sm-file-img,.sm-video-thumb,.sm-file-card{max-width:100%}
+}
+@media (max-width:699px),(hover:none),(pointer:coarse){
+  .sm-message-actions{position:static;opacity:1;justify-content:flex-start;gap:6px;margin-top:6px;padding:0;border:0;box-shadow:none;background:none}
+  .sm-message-actions button,.sm-message-actions a{width:40px;min-height:40px;background:none}
+}
+@media (max-width:699px){
+  html,body{overflow:hidden;overscroll-behavior:none}
+  body{overflow-wrap:anywhere}
+  .sm-app{position:fixed;top:var(--sm-viewport-top,0px);left:0;width:100%;height:100dvh;height:var(--sm-viewport-height,100dvh);flex-direction:column}
+  .sm-side,.sm-resize{display:none}
+  .sm-mobile-bar{display:block;flex:none;background:#3f0e40;color:#fff;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;z-index:10}
+  .sm-mobile-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+  .sm-mobile-workspace{display:flex;align-items:center;min-height:40px;min-width:0;color:#fff;font-size:17px;font-weight:900}
+  .sm-mobile-bar .sm-identity{flex:none;max-width:55%;color:#1d1c1d}
+  .sm-identity summary{min-height:40px;background:#fff;border-radius:20px}
+  .sm-identity-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sm-identity-list{width:280px;max-width:calc(100vw - 24px);max-height:calc(var(--sm-viewport-height,100dvh) - 120px);overflow-y:auto}
+  .sm-identity-list button{min-height:40px}
+  .sm-identity-list button>span{min-width:0;overflow-wrap:anywhere}
+  .sm-identity-user{white-space:normal}
+  .sm-channel-switch{display:block;width:100%;min-height:40px;margin-top:6px;padding:6px 10px;border:1px solid #79547a;border-radius:5px;background:#522653;color:#fff;font:inherit;font-size:16px}
+  .sm-main{min-height:0}
+  .sm-app-thread .sm-main{display:none}
+  .sm-panel{width:100%;min-width:0;min-height:0;flex:1;border-left:0}
+  .sm-top{padding:6px 12px;align-items:center;gap:10px;flex-wrap:wrap}
+  .sm-top h1{font-size:16px;min-width:0}
+  .sm-top .sm-sub,.sm-top .sm-identity,.sm-live{display:none}
+  .sm-panel-top{padding:6px 12px;align-items:center}
+  .sm-panel-back{display:inline-flex;align-items:center;justify-content:center;width:40px;min-height:40px;padding:0;border:0;font-size:22px}
+  .sm-panel-close,.sm-panel-expand{display:none}
+  .sm-main .sm-page,.sm-panel-body{min-height:0;padding:8px 12px 20px;overscroll-behavior:contain}
+  .sm-msg{padding:8px 0;gap:10px}
+  .sm-msg-body,.sm-card-v,.sm-field,.sm-att,.sm-context,.sm-file-card{overflow-wrap:anywhere}
+  .sm-text,.sm-blocks,.sm-field,.sm-att-text,.sm-att-pretext{font-size:16px;line-height:24px}
+  .sm-name{font-size:14px}
+  .sm-time{font-size:12px}
+  .sm-composer,.sm-panel .sm-composer{padding:8px 12px calc(10px + env(safe-area-inset-bottom))}
+  .sm-composer-text{font-size:16px;line-height:22px;resize:none;max-height:30vh}
+  .sm-composer-lock input{font-size:16px;min-height:40px;flex:1;min-width:0}
+  .sm-composer-lock>span:first-child{width:100%}
+  .sm-mentions,.sm-panel .sm-mentions{left:12px;right:12px;max-height:min(260px,40vh)}
+  .sm-mention{min-height:40px}
+  .sm-btn,.sm-select,.sm-reaction,.sm-prompt,.sm-replies,.sm-back,.sm-icon-btn,.sm-composer-send,.sm-composer-lock .sm-lock-go,.sm-lock-out{min-height:40px;display:inline-flex;align-items:center}
+  .sm-btn,.sm-select{max-width:100%;white-space:normal}
+  .sm-replies{flex-wrap:wrap;gap:4px 8px}
+  .sm-section-split{flex-wrap:wrap}
+  .sm-section-main{flex-basis:100%}
+  .sm-section-acc,.sm-context>*{min-width:0;max-width:100%}
+  .sm-att-img,.sm-file-img,.sm-video-thumb{max-width:100%;height:auto}
+  .sm-file-card,.sm-unsupported{max-width:100%}
+  .sm-file-card>div:last-child{min-width:0}
+  .sm-cards{gap:10px}
+  .sm-card{flex:1 1 calc(50% - 5px);min-width:0}
+  .sm-table,.sm-table tbody{display:block;width:100%}
+  .sm-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;padding:12px 0;border-bottom:1px solid #e8e8e8}
+  .sm-table tr:first-child{display:none}
+  .sm-table td{display:block;padding:0;border:0;overflow-wrap:anywhere}
+  .sm-table td:before{content:attr(data-label);display:block;font-size:11px;color:#616061;text-transform:uppercase;letter-spacing:.4px}
+  .sm-table td a{display:inline-flex;align-items:center;min-height:40px}
+  .sm-shot{width:100%;padding:12px}
+}
 `;
 
 function ctxOf(store: Store): RenderContext {
@@ -399,7 +492,12 @@ function avatarHtml(m: SlackMessage, name: string): string {
   return `<div class="sm-avatar" style="background:${color}">${escapeHtml(initials(name))}</div>`;
 }
 
-function reactionsHtml(store: Store, m: SlackMessage): string {
+function reactionsHtml(
+  store: Store,
+  m: SlackMessage,
+  interactive: boolean,
+  locked: boolean,
+): string {
   if (!m.reactions?.length) return "";
   const chips = m.reactions.map((r) => {
     const who = r.users
@@ -409,9 +507,43 @@ function reactionsHtml(store: Store, m: SlackMessage): string {
       })
       .join(", ");
     const char = emojiChar(r.name) ?? `:${r.name}:`;
-    return `<span class="sm-reaction" title="${escapeHtml(who)}">${escapeHtml(char)}<span class="sm-reaction-count">${r.count}</span></span>`;
+    const content = `${escapeHtml(char)}<span class="sm-reaction-count">${r.count}</span>`;
+    return interactive
+      ? `<button type="button" class="sm-reaction" title="${escapeHtml(who)}" data-reaction="${escapeHtml(r.name)}" data-users="${escapeHtml(JSON.stringify(r.users))}" aria-label="Add :${escapeHtml(r.name)}: reaction, ${r.count} ${r.count === 1 ? "person" : "people"} reacted" aria-pressed="false"${locked ? " disabled" : ""}>${content}</button>`
+      : `<span class="sm-reaction" title="${escapeHtml(who)}">${content}</span>`;
   });
   return `<div class="sm-reactions">${chips.join("")}</div>`;
+}
+
+function messageActions(m: SlackMessage, opts: RenderOptions): string {
+  const thread = m.thread_ts ?? m.ts;
+  const reactIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="12" r="8"/><path d="M7 14c2 3 6 3 8 0M8 9h.01M14 9h.01M20 2v6M17 5h6" stroke-linecap="round"/></svg>`;
+  const replyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z" stroke-linejoin="round"/><path d="M7 9h10M7 13h6" stroke-linecap="round"/></svg>`;
+  return `<div class="sm-message-actions"><button type="button" class="sm-add-reaction" aria-label="Add reaction" aria-haspopup="dialog" aria-controls="sm-reaction-picker" title="Add reaction"${opts.writeGated ? " disabled" : ""}>${reactIcon}</button><a class="sm-reply-action" href="${threadHref(m.channel, thread, opts)}" data-thread="${escapeHtml(thread)}" aria-label="Open thread" title="Open thread">${replyIcon}</a></div><div class="sm-action-error" role="alert" hidden></div>`;
+}
+
+function reactionPicker(): string {
+  const names = [
+    "thumbsup",
+    "green_heart",
+    "eyes",
+    "white_check_mark",
+    "tada",
+    "rocket",
+    "star",
+    "thinking_face",
+    "sparkles",
+    "fire",
+    "raised_hands",
+    "clap",
+  ];
+  const buttons = names
+    .map(
+      (name) =>
+        `<button type="button" data-reaction="${name}" aria-label="React with ${name.replaceAll("_", " ")}" title=":${name}:">${escapeHtml(emojiChar(name) ?? `:${name}:`)}</button>`,
+    )
+    .join("");
+  return `<dialog class="sm-reaction-picker" id="sm-reaction-picker" aria-labelledby="sm-reaction-title"><div class="sm-reaction-picker-head"><h2 id="sm-reaction-title">Add a reaction</h2><button type="button" class="sm-reaction-close" aria-label="Close reactions">✕</button></div><div class="sm-reaction-choices">${buttons}</div><div class="sm-action-error" role="alert" hidden></div></dialog>`;
 }
 
 /** The mock serves url_private behind a token, so browser requests carry it in the query. */
@@ -454,6 +586,7 @@ function renderMessage(
   const name = authorName(store, m);
   const isApp = Boolean(m.bot_id);
   const blocks = Array.isArray(m.blocks) && m.blocks.length ? m.blocks : undefined;
+  const interactive = !opts.screenshot && !flags.ephemeral && humanUsers(store).length > 0;
   const body: string[] = [];
   if (m.streaming_state !== undefined) {
     // A streamed message (chat.startStream) keeps its Markdown body; the blocks handed to
@@ -466,7 +599,7 @@ function renderMessage(
   if (m.edited) body.push(`<div class="sm-edited">(edited)</div>`);
   if (m.attachments?.length) body.push(renderAttachments(m.attachments, ctx));
   body.push(filesHtml(m.files, store.bot.token));
-  body.push(reactionsHtml(store, m));
+  body.push(reactionsHtml(store, m, interactive, Boolean(opts.writeGated)));
   if (flags.ephemeral) body.push(`<div class="sm-eph-note">Only visible to you</div>`);
   if (flags.threadLink && m.reply_count) {
     const count = `${m.reply_count} ${m.reply_count === 1 ? "reply" : "replies"}`;
@@ -477,12 +610,13 @@ function renderMessage(
       `<a class="sm-replies" href="${threadHref(m.channel, m.thread_ts ?? m.ts, opts)}">${count}${last}</a>`,
     );
   }
+  if (interactive) body.push(messageActions(m, opts));
   const streaming =
     m.streaming_state === "in_progress"
       ? `<span class="sm-stream" title="streaming">•••</span>`
       : "";
   const open = flags.openTs && flags.openTs === m.ts ? " sm-msg-open" : "";
-  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}" data-ts="${escapeHtml(m.ts)}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
+  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}" data-ts="${escapeHtml(m.ts)}" data-channel="${escapeHtml(m.channel)}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
 }
 
 /**
@@ -538,7 +672,14 @@ function sidebar(store: Store, opts: RenderOptions, active?: string): string {
         `<a class="${c.id === active ? "sm-active" : ""}" href="${channelHref(c.id, opts)}">${escapeHtml(channelIcon(c))} ${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</a>`,
     )
     .join("");
-  return `<nav class="sm-side"><div class="sm-side-title"><a href="${homeHref(opts)}" style="color:#fff">${escapeHtml(store.team.name)}</a><span class="sm-side-team">${escapeHtml(store.team.id)} · slack-mock</span></div><div class="sm-side-h">Channels</div>${links}</nav>`;
+  const options = channels
+    .map(
+      (c) =>
+        `<option value="${escapeHtml(channelHref(c.id, opts))}"${c.id === active ? " selected" : ""}>${escapeHtml(channelLabel(store, c))}</option>`,
+    )
+    .join("");
+  const mobile = `<div class="sm-mobile-bar"><div class="sm-mobile-heading"><a class="sm-mobile-workspace" href="${homeHref(opts)}">${escapeHtml(store.team.name)}</a>${identityChip(store, opts)}</div><select class="sm-channel-switch" aria-label="Channel"><option value="${homeHref(opts)}"${active ? "" : " selected"}>Workspace</option>${options}</select></div>`;
+  return `${mobile}<nav class="sm-side"><div class="sm-side-title"><a href="${homeHref(opts)}" style="color:#fff">${escapeHtml(store.team.name)}</a><span class="sm-side-team">${escapeHtml(store.team.id)} · slack-mock</span></div><div class="sm-side-h">Channels</div>${links}</nav>`;
 }
 
 interface ShellParts {
@@ -561,7 +702,7 @@ function shell(store: Store, opts: RenderOptions, parts: ShellParts): string {
       ? `<meta http-equiv="refresh" content="${Math.max(1, Math.floor(opts.refreshSec))}">`
       : "";
   const style = opts.screenshot ? "" : ` style="--sm-panel-w:${panelWidth(opts)}"`;
-  const head = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(parts.title)}</title>${refresh}<style>${CSS}</style></head>`;
+  const head = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${escapeHtml(parts.title)}</title>${refresh}<style>${CSS}</style></head>`;
   if (opts.screenshot) {
     return `${head}<body><div class="sm-shot">${parts.header}<div class="sm-page">${parts.main}</div></div></body></html>`;
   }
@@ -604,14 +745,14 @@ function indexView(store: Store, opts: RenderOptions): string {
   const channelRows = channels
     .map((c) => {
       const count = store.messages.get(c.id)?.length ?? 0;
-      return `<tr><td><a href="${channelHref(c.id, opts)}">${escapeHtml(channelIcon(c))} ${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</a></td><td><span class="sm-tag">${channelKind(c)}</span></td><td class="sm-muted">${c.id}</td><td>${count}</td></tr>`;
+      return `<tr><td data-label="Name"><a href="${channelHref(c.id, opts)}">${escapeHtml(channelIcon(c))} ${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</a></td><td data-label="Type"><span class="sm-tag">${channelKind(c)}</span></td><td class="sm-muted" data-label="Id">${c.id}</td><td data-label="Messages">${count}</td></tr>`;
     })
     .join("");
 
   const userRows = [...store.users.values()]
     .map(
       (u) =>
-        `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.real_name)}</td><td class="sm-muted">${escapeHtml(u.profile.title ?? "")}</td><td class="sm-muted">${escapeHtml(u.profile.email ?? "")}</td><td class="sm-muted">${u.id}</td><td>${u.is_bot ? `<span class="sm-tag">bot</span>` : ""}</td></tr>`,
+        `<tr><td data-label="Name">${escapeHtml(u.name)}${userStatus(u)}</td><td data-label="Real name">${escapeHtml(u.real_name)}</td><td class="sm-muted" data-label="Title">${escapeHtml(u.profile.title ?? "")}</td><td class="sm-muted" data-label="Email">${escapeHtml(u.profile.email ?? "")}</td><td class="sm-muted" data-label="Id">${u.id}</td><td data-label="Type">${u.is_bot ? `<span class="sm-tag">bot</span>` : ""}</td></tr>`,
     )
     .join("");
 
@@ -627,8 +768,14 @@ ${
 
   return shell(store, opts, {
     title: `${store.team.name} · slack-mock`,
-    header: topbar(escapeHtml(store.team.name), "slack-mock workspace"),
+    header: topbar(
+      escapeHtml(store.team.name),
+      "slack-mock workspace",
+      undefined,
+      identityChip(store, opts),
+    ),
     main,
+    script: opts.screenshot ? "" : uiScript(store, opts, undefined, false),
   });
 }
 
@@ -660,7 +807,12 @@ function channelColumn(
 function channelHeader(store: Store, opts: RenderOptions, channel: SlackChannel): string {
   const sub = [channel.topic.value, channel.purpose.value].filter(Boolean).join(" · ");
   const back = opts.screenshot ? undefined : { href: homeHref(opts), label: "← Workspace" };
-  return topbar(escapeHtml(channelLabel(store, channel)), escapeHtml(sub), back);
+  return topbar(
+    escapeHtml(channelLabel(store, channel)),
+    escapeHtml(sub),
+    back,
+    identityChip(store, opts),
+  );
 }
 
 // ---------------------------------------------------------------- composer
@@ -668,6 +820,30 @@ function channelHeader(store: Store, opts: RenderOptions, channel: SlackChannel)
 /** Human users, bots excluded: the composer posts as one of them. */
 function humanUsers(store: Store): SlackUser[] {
   return [...store.users.values()].filter((u) => !u.is_bot && !u.deleted);
+}
+
+function userStatus(user: SlackUser): string {
+  return user.profile.status_text
+    ? `<span class="sm-user-status">${escapeHtml(user.profile.status_text)}</span>`
+    : "";
+}
+
+function identityChip(store: Store, opts: RenderOptions): string {
+  if (opts.screenshot) return "";
+  const users = humanUsers(store);
+  const selected = users[0];
+  if (!selected) return "";
+  const name = selected.real_name || selected.name;
+  const avatar = `<span class="sm-identity-avatar" style="background:${AVATAR_COLORS[hashIndex(selected.id, AVATAR_COLORS.length)]}">${escapeHtml(initials(name))}</span>`;
+  const items = users
+    .map((u) => {
+      const real = u.real_name || u.name;
+      const color = AVATAR_COLORS[hashIndex(u.id, AVATAR_COLORS.length)];
+      return `<li><button type="button" data-user="${escapeHtml(u.id)}"><span class="sm-identity-avatar" style="background:${color}">${escapeHtml(initials(real))}</span><span>${escapeHtml(real)}${userStatus(u)}</span><span class="sm-identity-user">@${escapeHtml(u.name)}</span></button></li>`;
+    })
+    .join("");
+  const hidden = opts.writeGated ? " hidden" : "";
+  return `<details class="sm-identity"${hidden}><summary title="Change posting identity" aria-label="Posting as ${escapeHtml(name)}">${avatar}<span class="sm-identity-name">${escapeHtml(name)}</span></summary><ul class="sm-identity-list">${items}</ul></details>`;
 }
 
 function composer(
@@ -679,19 +855,13 @@ function composer(
   if (opts.screenshot) return "";
   const users = humanUsers(store);
   if (!users.length) return "";
-  const options = users
-    .map(
-      (u, i) =>
-        `<option value="${escapeHtml(u.id)}"${i === 0 ? " selected" : ""}>${escapeHtml(u.real_name || u.name)}</option>`,
-    )
-    .join("");
   const placeholder = threadTs ? "Reply in thread" : `Message ${channelLabel(store, channel)}`;
   const thread = threadTs ? ` data-thread="${escapeHtml(threadTs)}"` : "";
   const gated = opts.writeGated ? ' data-gated="1"' : "";
   const lock = opts.writeGated
     ? `<div class="sm-composer-lock" hidden><span>Reading is open. Sign in to post.</span><input class="sm-lock-user" placeholder="user" autocomplete="username"><input class="sm-lock-pass" type="password" placeholder="password" autocomplete="current-password"><button type="button" class="sm-lock-go">Sign in</button><span class="sm-err"></span></div>`
     : "";
-  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}${gated}><div class="sm-mentions"></div><div class="sm-composer-box"><textarea class="sm-composer-text" rows="2" placeholder="${escapeHtml(placeholder)}" data-placeholder="${escapeHtml(placeholder)}"></textarea><div class="sm-composer-row"><select class="sm-composer-user" aria-label="Post as">${options}</select><button type="button" class="sm-composer-send">Send</button></div></div>${lock}<div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention<span class="sm-lock-state"></span></div></div>`;
+  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}${gated}><div class="sm-mentions"></div><div class="sm-composer-box"><textarea class="sm-composer-text" rows="2" placeholder="${escapeHtml(placeholder)}" data-placeholder="${escapeHtml(placeholder)}"></textarea><div class="sm-composer-row"><button type="button" class="sm-composer-send">Send</button></div></div>${lock}<div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention<span class="sm-lock-state"></span></div></div>`;
 }
 
 /** Mention targets for the composer autocomplete: every user, bots included. */
@@ -699,10 +869,12 @@ function mentionData(store: Store): string {
   const users = [...store.users.values()]
     .filter((u) => !u.deleted)
     .map((u) => ({
+      id: u.id,
       name: u.name,
       real: u.real_name || u.name,
       initials: initials(u.real_name || u.name),
       color: AVATAR_COLORS[hashIndex(u.id, AVATAR_COLORS.length)],
+      bot: u.is_bot,
     }));
   const json = JSON.stringify(users).replace(/</g, "\\u003c");
   return `<script type="application/json" id="sm-users">${json}</script>`;
@@ -712,14 +884,18 @@ function mentionData(store: Store): string {
  * The whole client side: scroll to the newest message, drag the panel edge,
  * send from the composers, mention autocomplete and Escape to close a thread.
  */
-function uiScript(store: Store, opts: RenderOptions, closeUrl?: string): string {
+function uiScript(store: Store, opts: RenderOptions, closeUrl?: string, autoScroll = true): string {
   const esc = closeUrl
     ? `document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!/^(TEXTAREA|INPUT|SELECT)$/.test(document.activeElement&&document.activeElement.tagName||""))location.href=${JSON.stringify(closeUrl)}});`
     : "";
   const body = `(function(){
+var viewport=window.visualViewport;
+function fitViewport(){if(viewport&&viewport.scale!==1)return;var style=document.documentElement.style;style.setProperty("--sm-viewport-height",(viewport?viewport.height:innerHeight)+"px");style.setProperty("--sm-viewport-top",(viewport?viewport.offsetTop:0)+"px")}
+fitViewport();addEventListener("resize",fitViewport);
+if(viewport){viewport.addEventListener("resize",fitViewport);viewport.addEventListener("scroll",fitViewport)}
+document.addEventListener("change",function(e){if(e.target.classList.contains("sm-channel-switch"))location.href=e.target.value});
 var W="sm-panel-w",DEF=${JSON.stringify(panelWidth(opts))},FIXED=${opts.panelWidth ? "true" : "false"};
-function scroll(){document.querySelectorAll(".sm-scroll").forEach(function(el){el.scrollTop=el.scrollHeight})}
-scroll();addEventListener("load",scroll);
+${autoScroll ? 'function scroll(){document.querySelectorAll(".sm-scroll").forEach(function(el){el.scrollTop=el.scrollHeight})}\nscroll();addEventListener("load",scroll);' : ""}
 var handle=document.querySelector(".sm-resize");
 if(handle){
  var saved=null;try{saved=localStorage.getItem(W)}catch(e){}
@@ -731,21 +907,54 @@ if(handle){
  handle.addEventListener("dblclick",function(){try{localStorage.removeItem(W)}catch(e){}document.body.style.setProperty("--sm-panel-w",DEF)});
 }
 var raw=document.getElementById("sm-users");
-var PEOPLE=(raw?JSON.parse(raw.textContent||"[]"):[]).concat([{name:"here",real:"Notify everyone online",initials:"@",color:"#616061"},{name:"channel",real:"Notify everyone in the channel",initials:"@",color:"#616061"}]);
+var USERS=raw?JSON.parse(raw.textContent||"[]"):[],HUMANS=USERS.filter(function(u){return !u.bot});
+var PEOPLE=USERS.concat([{name:"here",real:"Notify everyone online",initials:"@",color:"#616061"},{name:"channel",real:"Notify everyone in the channel",initials:"@",color:"#616061"}]);
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;"})}
-var GATED=${opts.writeGated ? "true" : "false"},LIVE=${opts.live !== false && !opts.refreshSec ? "true" : "false"},CK="sm-presenter";
+var GATED=${opts.writeGated ? "true" : "false"},LIVE=${opts.live !== false && !opts.refreshSec ? "true" : "false"},CK="sm-presenter",IK="sm-identity",currentIdentity="",identityStorage=true;
 function cred(){try{return localStorage.getItem(CK)||""}catch(e){return ""}}
 function setCred(v){try{if(v)localStorage.setItem(CK,v);else localStorage.removeItem(CK)}catch(e){}}
+function setIdentity(v){currentIdentity=v;try{if(v)localStorage.setItem(IK,v);else localStorage.removeItem(IK)}catch(e){identityStorage=false}}
+function findIdentity(value,key){for(var i=0;i<HUMANS.length;i++)if(HUMANS[i][key]===value)return HUMANS[i];return null}
+function identity(){var id=currentIdentity;if(identityStorage)try{id=localStorage.getItem(IK)||currentIdentity}catch(e){identityStorage=false}currentIdentity=id;var u=findIdentity(id,"id");if(!u&&HUMANS.length){u=HUMANS[0];setIdentity(u.id)}return u}
+(function(){var url=null,name=null;try{url=new URL(location.href);name=url.searchParams.get("as")}catch(e){}if(url&&name!==null){var u=findIdentity(name,"name");if(u)setIdentity(u.id);url.searchParams.delete("as");var search=url.searchParams.toString();history.replaceState(null,"",url.pathname+(search?"?"+search:"")+url.hash)}})();
 (function(){var m=/[#&]presenter=([^&]+)/.exec(location.hash||"");if(m){setCred(btoa(decodeURIComponent(m[1])));history.replaceState(null,"",location.pathname+location.search)}})();
 function authHeaders(h){var c=cred();if(c)h.authorization="Basic "+c;return h}
-function lockUi(){document.querySelectorAll(".sm-composer").forEach(function(box){var locked=GATED&&!cred(),lock=box.querySelector(".sm-composer-lock"),ta=box.querySelector(".sm-composer-text"),btn=box.querySelector(".sm-composer-send"),state=box.querySelector(".sm-lock-state");if(lock)lock.hidden=!locked;ta.disabled=locked;btn.disabled=locked;ta.placeholder=locked?"Sign in to post":(ta.dataset.placeholder||"");if(state)state.innerHTML=GATED&&!locked?' · signed in · <a href="#" class="sm-lock-out">Sign out</a>':""})}
+var reactionDialog=document.querySelector(".sm-reaction-picker"),reactionTarget=null,reactionScope=null,reactionBusy=false;
+function closeReactions(restoreFocus){var button=reactionTarget&&reactionTarget.querySelector(".sm-add-reaction");if(reactionDialog&&reactionDialog.open)reactionDialog.close();reactionTarget=null;reactionScope=null;if(restoreFocus&&button&&button.isConnected&&!button.disabled)button.focus({preventScroll:true})}
+function findMessageElement(scope,ts){var found=null;if(scope)scope.querySelectorAll(".sm-msg[data-ts]").forEach(function(message){if(message.dataset.ts===ts)found=message});return found}
+function positionReactions(){
+ if(!reactionDialog||!reactionDialog.open||!reactionTarget)return;
+ if(!reactionTarget.isConnected){reactionTarget=findMessageElement(reactionScope,reactionTarget.dataset.ts);if(!reactionTarget){closeReactions();return}}
+ var button=reactionTarget.querySelector(".sm-add-reaction"),anchor=button.getBoundingClientRect(),v=window.visualViewport,left=v?v.offsetLeft:0,top=v?v.offsetTop:0,width=v?v.width:innerWidth,height=v?v.height:innerHeight,scope=reactionScope.getBoundingClientRect(),pad=12,gap=8;
+ if(anchor.bottom<=Math.max(top,scope.top)||anchor.top>=Math.min(top+height,scope.bottom)){closeReactions();return}
+ reactionDialog.style.maxWidth=Math.max(0,width-pad*2)+"px";reactionDialog.style.maxHeight=Math.max(0,height-pad*2)+"px";
+ var rect=reactionDialog.getBoundingClientRect(),x=Math.max(left+pad,Math.min(anchor.right-rect.width,left+width-rect.width-pad)),y=anchor.bottom+gap;
+ if(y+rect.height>top+height-pad)y=anchor.top-rect.height-gap;
+ reactionDialog.style.left=x+"px";reactionDialog.style.top=Math.max(top+pad,Math.min(y,top+height-rect.height-pad))+"px";
+}
+document.addEventListener("scroll",function(e){if(!reactionDialog.contains(e.target))positionReactions()},true);
+addEventListener("resize",positionReactions);
+if(window.visualViewport){window.visualViewport.addEventListener("resize",positionReactions);window.visualViewport.addEventListener("scroll",positionReactions)}
+document.addEventListener("pointerdown",function(e){if(reactionDialog.open&&!reactionDialog.contains(e.target)&&!e.target.closest(".sm-add-reaction"))closeReactions()});
+document.addEventListener("focusin",function(e){if(reactionDialog.open&&!reactionDialog.contains(e.target)&&(!reactionTarget||e.target!==reactionTarget.querySelector(".sm-add-reaction")))closeReactions()});
+function hasReaction(button,user){return JSON.parse(button.dataset.users||"[]").indexOf(user)!==-1}
+function reactionUi(root){var u=identity(),locked=(GATED&&!cred())||!u;(root||document).querySelectorAll(".sm-add-reaction,.sm-reaction[data-reaction],.sm-reaction-choices button").forEach(function(button){button.disabled=locked||reactionBusy;if(button.classList.contains("sm-reaction")){var mine=Boolean(u&&hasReaction(button,u.id)),count=button.querySelector(".sm-reaction-count").textContent;button.setAttribute("aria-pressed",String(mine));button.setAttribute("aria-label",(mine?"Remove":"Add")+" :"+button.dataset.reaction+": reaction, "+count+" "+(count==="1"?"person":"people")+" reacted")}});if(locked)closeReactions()}
+function identityUi(){var u=identity();document.querySelectorAll(".sm-identity").forEach(function(chip){chip.hidden=GATED&&!cred();if(!u)return;var av=chip.querySelector("summary .sm-identity-avatar"),name=chip.querySelector(".sm-identity-name"),summary=chip.querySelector("summary");if(av){av.textContent=u.initials;av.style.backgroundColor=u.color}if(name)name.textContent=u.real;if(summary)summary.setAttribute("aria-label","Posting as "+u.real);chip.querySelectorAll("[data-user]").forEach(function(button){if(button.dataset.user===u.id)button.setAttribute("aria-current","true");else button.removeAttribute("aria-current")})});reactionUi()}
+function lockUi(){document.querySelectorAll(".sm-composer").forEach(function(box){var locked=GATED&&!cred(),lock=box.querySelector(".sm-composer-lock"),ta=box.querySelector(".sm-composer-text"),btn=box.querySelector(".sm-composer-send"),state=box.querySelector(".sm-lock-state");if(lock)lock.hidden=!locked;ta.disabled=locked;btn.disabled=locked;ta.placeholder=locked?"Sign in to post":(ta.dataset.placeholder||"");if(state)state.innerHTML=GATED&&!locked?' · signed in · <a href="#" class="sm-lock-out">Sign out</a>':""});identityUi()}
 function signIn(box){if(!box)return;var u=box.querySelector(".sm-lock-user").value.trim(),p=box.querySelector(".sm-lock-pass").value,err=box.querySelector(".sm-err");if(!u){err.textContent="Enter the presenter user";return}var c=btoa(u+":"+p);err.textContent="";fetch("/mock/presenter",{headers:{authorization:"Basic "+c}}).then(function(r){if(!r.ok)throw new Error(r.status===401||r.status===403?"Wrong user or password":"Sign-in failed ("+r.status+")");setCred(c);lockUi();box.querySelector(".sm-composer-text").focus()}).catch(function(e){err.textContent=e.message})}
-document.addEventListener("click",function(e){var out=e.target.closest(".sm-lock-out");if(out){e.preventDefault();setCred("");lockUi();return}var go=e.target.closest(".sm-lock-go");if(go)signIn(go.closest(".sm-composer"))});
+document.addEventListener("click",function(e){var pick=e.target.closest(".sm-identity-list button");if(pick){setIdentity(pick.dataset.user);identityUi();pick.closest(".sm-identity").open=false;return}if(!e.target.closest(".sm-identity"))document.querySelectorAll(".sm-identity[open]").forEach(function(chip){chip.open=false});var out=e.target.closest(".sm-lock-out");if(out){e.preventDefault();setCred("");lockUi();return}var go=e.target.closest(".sm-lock-go");if(go)signIn(go.closest(".sm-composer"))});
+document.addEventListener("keydown",function(e){if(e.key!=="Escape")return;var chip=document.querySelector(".sm-identity[open]");if(!chip)return;e.preventDefault();e.stopImmediatePropagation();chip.open=false;chip.querySelector("summary").focus()});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&reactionDialog&&reactionDialog.open){e.preventDefault();e.stopImmediatePropagation();closeReactions(true)}});
 document.addEventListener("keydown",function(e){var c=e.target.classList;if(e.key==="Enter"&&c&&(c.contains("sm-lock-pass")||c.contains("sm-lock-user"))){e.preventDefault();signIn(e.target.closest(".sm-composer"))}});
+addEventListener("storage",function(e){if(e.key===IK){currentIdentity=e.newValue||"";identityUi()}});
 lockUi();
 var pending=null;
-function refresh(){if(pending)return;pending=setTimeout(function(){pending=null;fetch(location.href,{headers:{accept:"text/html"},credentials:"same-origin"}).then(function(r){return r.ok?r.text():Promise.reject(r.status)}).then(apply).catch(function(){})},120)}
-function apply(html){var doc=new DOMParser().parseFromString(html,"text/html");[".sm-side",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});if(doc.title)document.title=doc.title}
+function refresh(){if(pending)return;pending=setTimeout(function(){pending=null;fetch(location.href,{headers:{accept:"text/html"},credentials:"same-origin"}).then(function(r){return r.ok?r.text():Promise.reject(r.status)}).then(apply).catch(function(){reactionUi()})},120)}
+function apply(html){
+ var doc=new DOMParser().parseFromString(html,"text/html"),opener=document.activeElement,focusedMessage=opener&&opener.classList.contains("sm-add-reaction")?opener.closest(".sm-msg"):null,focusedScope=focusedMessage&&focusedMessage.closest(".sm-page,.sm-panel-body");
+ reactionUi();reactionUi(doc);[".sm-side",".sm-channel-switch",".sm-page",".sm-panel-body"].forEach(function(sel){var cur=document.querySelector(sel),nxt=doc.querySelector(sel);if(!cur||!nxt)return;var seen={};cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){el.classList.remove("sm-msg-new","sm-msg-changed");seen[el.dataset.ts]=el.outerHTML});var atBottom=cur.scrollHeight-cur.scrollTop-cur.clientHeight<80;cur.innerHTML=nxt.innerHTML;cur.querySelectorAll(".sm-msg[data-ts]").forEach(function(el){var prev=seen[el.dataset.ts];if(prev===undefined)el.classList.add("sm-msg-new");else if(prev!==el.outerHTML)el.classList.add("sm-msg-changed")});if(atBottom)cur.scrollTop=cur.scrollHeight});identityUi();positionReactions();if(doc.title)document.title=doc.title;
+ if(focusedMessage&&!opener.isConnected){var message=findMessageElement(focusedScope,focusedMessage.dataset.ts);if(message)message.querySelector(".sm-add-reaction").focus({preventScroll:true})}
+}
 if(LIVE&&window.EventSource){
  var box0=document.querySelector(".sm-composer"),pm=/^\\/c\\/([^/]+)/.exec(location.pathname),chan=box0?box0.dataset.channel:(pm?decodeURIComponent(pm[1]):null);
  if(chan){
@@ -757,7 +966,23 @@ if(LIVE&&window.EventSource){
   es.onerror=function(){down=true;if(dot){dot.textContent="● reconnecting";dot.classList.add("sm-live-off")}};
  }
 }
-function send(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim();if(!text||t.disabled)return;var body={channel:box.dataset.channel,user:box.querySelector(".sm-composer-user").value,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:authHeaders({"content-type":"application/json"}),body:JSON.stringify(body)}).then(function(r){t.disabled=false;if(r.status===401||r.status===403){setCred("");lockUi();var err=box.querySelector(".sm-err");if(err)err.textContent="Not signed in, or the credential changed. Sign in to post.";return}if(!r.ok)throw new Error("send failed "+r.status);t.value="";if(LIVE)refresh();else location.reload()}).catch(function(){t.disabled=false})}
+function react(message,name){
+ var u=identity();if(!message||!u||reactionBusy||(GATED&&!cred()))return;
+ var action="add";message.querySelectorAll(".sm-reaction[data-reaction]").forEach(function(button){if(button.dataset.reaction===name&&hasReaction(button,u.id))action="remove"});
+ var err=(reactionDialog&&reactionDialog.open?reactionDialog:message).querySelector(".sm-action-error");if(err){err.hidden=true;err.textContent=""}
+ reactionBusy=true;reactionUi();
+ fetch("/mock/reactions",{method:"POST",headers:authHeaders({"content-type":"application/json"}),body:JSON.stringify({channel:message.dataset.channel,ts:message.dataset.ts,name:name,user:u.id,action:action})}).then(function(r){
+  if(r.status===401||r.status===403){setCred("");lockUi();throw new Error("Sign in to react.")}
+  return r.json().then(function(data){if(!r.ok&&data.error!=="already_reacted"&&data.error!=="no_reaction")throw new Error("Could not save the reaction. Try again.")})
+ }).then(function(){reactionBusy=false;reactionUi();closeReactions(true);refresh()}).catch(function(e){reactionBusy=false;reactionUi();if(err){if(err.closest("dialog")&&!reactionDialog.open)err=message.querySelector(".sm-action-error");err.textContent=e.message==="Sign in to react."?e.message:"Could not save the reaction. Try again.";err.hidden=false;positionReactions()}})
+}
+document.addEventListener("click",function(e){
+ var add=e.target.closest(".sm-add-reaction");if(add&&!add.disabled){var message=add.closest(".sm-msg");if(reactionDialog.open&&reactionTarget===message){closeReactions(true);return}reactionTarget=message;reactionScope=message.closest(".sm-page,.sm-panel-body");var err=reactionDialog.querySelector(".sm-action-error");err.hidden=true;err.textContent="";if(!reactionDialog.open)reactionDialog.show();positionReactions();return}
+ var choice=e.target.closest("button[data-reaction]");if(choice&&!choice.disabled){react(choice.closest(".sm-reaction-picker")?reactionTarget:choice.closest(".sm-msg"),choice.dataset.reaction);return}
+ if(e.target.closest(".sm-reaction-close")){closeReactions(true);return}
+ var reply=e.target.closest(".sm-reply-action"),box=document.querySelector(".sm-composer[data-thread]");if(reply&&box&&box.dataset.thread===reply.dataset.thread&&box.dataset.channel===reply.closest(".sm-msg").dataset.channel)e.preventDefault()
+});
+function send(box){var t=box.querySelector(".sm-composer-text"),text=t.value.trim(),user=identity();if(!text||t.disabled||!user)return;var body={channel:box.dataset.channel,user:user.id,text:text};if(box.dataset.thread)body.thread_ts=box.dataset.thread;t.disabled=true;fetch("/mock/messages",{method:"POST",headers:authHeaders({"content-type":"application/json"}),body:JSON.stringify(body)}).then(function(r){t.disabled=false;if(r.status===401||r.status===403){setCred("");lockUi();var err=box.querySelector(".sm-err");if(err)err.textContent="Not signed in, or the credential changed. Sign in to post.";return}if(!r.ok)throw new Error("send failed "+r.status);t.value="";if(LIVE)refresh();else location.reload()}).catch(function(){t.disabled=false})}
 document.querySelectorAll(".sm-composer").forEach(function(box){
  var ta=box.querySelector(".sm-composer-text"),menu=box.querySelector(".sm-mentions"),items=[],active=0;
  function close(){items=[];menu.style.display="none"}
@@ -793,7 +1018,7 @@ document.querySelectorAll(".sm-composer").forEach(function(box){
  box.querySelector(".sm-composer-send").addEventListener("click",function(){send(box)});
 });
 })();`;
-  return `${mentionData(store)}<script>${body}${esc}</script>`;
+  return `${mentionData(store)}${reactionPicker()}<script>${body}${esc}</script>`;
 }
 
 function channelView(store: Store, opts: RenderOptions, channelId: string): string {
@@ -878,7 +1103,7 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
       `Thread <span class="sm-muted">·</span> ${escapeHtml(label)}`,
       "",
       { href: close, label: `← ${label}` },
-      `<a class="sm-icon-btn" href="${threadHref(channel.id, ts, opts, { full: false })}" title="Collapse to panel" aria-label="Collapse to panel">⤡</a>`,
+      `<a class="sm-icon-btn" href="${threadHref(channel.id, ts, opts, { full: false })}" title="Collapse to panel" aria-label="Collapse to panel">⤡</a>${identityChip(store, opts)}`,
     );
     return shell(store, opts, {
       title,
@@ -891,7 +1116,7 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
   }
 
   const expand = threadHref(channel.id, ts, opts, { full: true });
-  const panel = `<aside class="sm-panel"><div class="sm-panel-top"><div class="sm-panel-heading"><h2 class="sm-panel-title">Thread</h2><div class="sm-panel-sub">${escapeHtml(label)}</div></div><a class="sm-panel-expand" href="${expand}" title="Expand thread">⤢</a><a class="sm-panel-close" href="${close}" title="Close thread">×</a></div><a class="sm-panel-back" href="${close}">← ${escapeHtml(label)}</a><div class="sm-panel-body sm-scroll">${body}</div>${composer(store, opts, channel, ts)}</aside>`;
+  const panel = `<aside class="sm-panel"><div class="sm-panel-top"><a class="sm-panel-back" href="${close}" aria-label="Back to ${escapeHtml(label)}">←</a><div class="sm-panel-heading"><h2 class="sm-panel-title">Thread</h2><div class="sm-panel-sub">${escapeHtml(label)}</div></div><a class="sm-panel-expand" href="${expand}" title="Expand thread">⤢</a><a class="sm-panel-close" href="${close}" title="Close thread">×</a></div><div class="sm-panel-body sm-scroll">${body}</div>${composer(store, opts, channel, ts)}</aside>`;
   return shell(store, opts, {
     title,
     header: channelHeader(store, opts, channel),

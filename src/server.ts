@@ -95,9 +95,10 @@ export interface SlackMockOptions extends StoreOptions {
    */
   publicUi?: boolean;
   /**
-   * "user:password" that may only post messages (`POST /mock/messages`) and check its role
-   * (`GET /mock/presenter`). With `publicUi` the HTML composer shows a sign-in for it, so a presenter
-   * can drive a public-read workspace without the admin credential. `adminAuth` always implies it.
+   * "user:password" that may post messages (`POST /mock/messages`), mutate reactions
+   * (`POST /mock/reactions`), and check its role (`GET /mock/presenter`). With `publicUi` the HTML
+   * composer shows a sign-in for it, so a presenter can drive a public-read workspace without the
+   * admin credential. `adminAuth` always implies it.
    */
   presenterAuth?: string;
   log?: boolean | ((msg: string) => void);
@@ -291,7 +292,7 @@ export class SlackMock {
     return basicAuthMatches(req, expected);
   }
 
-  /** `presenterAuth` (or `adminAuth`) may post messages and read its role, nothing else. */
+  /** `presenterAuth` (or `adminAuth`) may post messages, mutate reactions, and read its role. */
   private authorizedPresenter(req: Request): boolean {
     if (this.authorizedAdmin(req)) return true;
     const expected = this.opts.presenterAuth;
@@ -347,7 +348,8 @@ export class SlackMock {
       const isUiSurface = path === "/" || path === "" || path.startsWith("/c/");
       const isAdminSurface = path.startsWith("/mock/") || (isUiSurface && !this.opts.publicUi);
       const isPresenterRoute =
-        (path === "/mock/messages" && req.method === "POST") || path === "/mock/presenter";
+        ((path === "/mock/messages" || path === "/mock/reactions") && req.method === "POST") ||
+        path === "/mock/presenter";
       const allowed = isPresenterRoute ? this.authorizedPresenter(req) : this.authorizedAdmin(req);
       if (isAdminSurface && !allowed) return denied(req, path);
       if (path.startsWith("/link/") || path === "/link") {
@@ -912,6 +914,17 @@ export class SlackMock {
     await this.flush();
   }
 
+  async removeReaction(input: {
+    channel: string;
+    ts: string;
+    name: string;
+    user?: string;
+  }): Promise<void> {
+    const user = input.user ? this.user(input.user) : this.defaultHuman();
+    this.store.removeReaction(this.resolveChannel(input.channel).id, input.ts, input.name, user.id);
+    await this.flush();
+  }
+
   private issueResponseUrl(target: Omit<ResponseUrl, "expires">): string {
     const id = `${this.store.team.id}/${slackId("", 10)}/${slackId("", 24).toLowerCase()}`;
     this.responseUrls.set(id, { ...target, expires: Date.now() + 30 * 60_000 });
@@ -1305,7 +1318,17 @@ export class SlackMock {
       if (path === "assistant/start" && req.method === "POST")
         return json(await this.startAssistantThread(body));
       if (path === "reactions" && req.method === "POST") {
-        await this.addReaction(body as { channel: string; ts: string; name: string });
+        const input = body as {
+          channel: string;
+          ts: string;
+          name: string;
+          user?: string;
+          action?: string;
+        };
+        if (input.action !== undefined && input.action !== "add" && input.action !== "remove")
+          throw new SlackApiError("invalid_arguments");
+        if (input.action === "remove") await this.removeReaction(input);
+        else await this.addReaction(input);
         return json({ ok: true });
       }
       if (path === "api-calls")

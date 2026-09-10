@@ -138,11 +138,14 @@ page on every event, swapping the message column, the thread panel and the
 sidebar in place. Messages carry `data-ts`, so new ones get a yellow flash and
 edited ones a blue one. `?live=0` turns it off and `?refresh=N` still polls.
 Posting from a public-read workspace uses a second credential: `PRESENTER_AUTH`
-(`presenterAuth`) may call `POST /mock/messages` and `GET /mock/presenter`
-only. The composer stores it in `localStorage` after an inline sign-in (or from
+(`presenterAuth`) may call `POST /mock/messages`, `POST /mock/reactions`, and
+`GET /mock/presenter`. The composer stores it in `localStorage` after an inline sign-in (or from
 `#presenter=user:password` in the URL) and sends it as basic auth. A `/mock`
 request that carries a wrong `Authorization` header gets 403 without
 `WWW-Authenticate`, so the composer's fetch never triggers the browser prompt.
+
+`POST /mock/reactions` accepts `channel`, `ts`, `name`, optional `user`, and optional `action`.
+`action` defaults to `add`. Use `remove` to remove that user's reaction.
 
 ## Not in the MVP
 
