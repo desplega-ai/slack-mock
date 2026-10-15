@@ -133,7 +133,9 @@ Stitch the PNGs into a GIF with ffmpeg if you want motion; the mock only produce
   `member_joined_channel`, `assistant_thread_started`,
   `assistant_thread_context_changed`. The bot's own messages are echoed back
   like Slack does (Bolt's `ignoreSelf` drops them).
-- Web API: auth, chat (post, update, delete, ephemeral, permalink, streams),
+- Web API: auth, chat (post, update, delete, ephemeral, permalink, streams,
+  `markdown_text` kept as the message text, `markdown_text_conflict` next to
+  `text` or `blocks`),
   conversations (list, info, create, join, invite, archive, history, replies,
   members, open), users (info, list, lookupByEmail), reactions, files
   (info, upload v2 flow, download with bearer token), views (open, update,

@@ -189,3 +189,43 @@ test("pagination, ephemerals, and API call records are observable", async () => 
   expect(call.args.thread_ts).toBe(parent.ts);
   expect(call.args.blocks).toEqual(blocks);
 });
+
+test("markdown_text posts and updates like Slack, and conflicts with text or blocks", async () => {
+  const posted = (await app.client.apiCall("chat.postMessage", {
+    channel: "C0GENERAL0",
+    markdown_text: "**bold** reply",
+  })) as unknown as { ts: string; message: { text: string } };
+  expect(posted.message.text).toBe("**bold** reply");
+
+  const updated = (await app.client.apiCall("chat.update", {
+    channel: "C0GENERAL0",
+    ts: posted.ts,
+    markdown_text: "**bold** edit",
+  })) as unknown as { text: string };
+  expect(updated.text).toBe("**bold** edit");
+  expect(mock.thread("general", posted.ts)[0]?.text).toBe("**bold** edit");
+
+  expect(
+    errorCode(
+      await rejected(
+        app.client.apiCall("chat.postMessage", {
+          channel: "C0GENERAL0",
+          text: "plain",
+          markdown_text: "**bold**",
+        }),
+      ),
+    ),
+  ).toBe("markdown_text_conflict");
+  expect(
+    errorCode(
+      await rejected(
+        app.client.apiCall("chat.update", {
+          channel: "C0GENERAL0",
+          ts: posted.ts,
+          blocks: [{ type: "section", text: { type: "mrkdwn", text: "x" } }],
+          markdown_text: "**bold**",
+        }),
+      ),
+    ),
+  ).toBe("markdown_text_conflict");
+});
