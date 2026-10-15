@@ -65,10 +65,23 @@ function botFields(ctx: ApiContext): Partial<SlackMessage> {
   };
 }
 
+/**
+ * `markdown_text` is Slack's markdown input (`**bold**`, lists, code fences).
+ * Slack rejects it next to `text` or `blocks` and renders it server-side; the
+ * mock keeps the markdown as the message `text`.
+ */
+function markdownText(args: Args): string | undefined {
+  const markdown = str(args, "markdown_text");
+  if (markdown === undefined) return undefined;
+  if (str(args, "text") || (Array.isArray(args.blocks) && args.blocks.length))
+    throw new SlackApiError("markdown_text_conflict");
+  return markdown;
+}
+
 function messageContent(
   args: Args,
 ): Pick<SlackMessage, "text" | "blocks" | "attachments" | "metadata"> {
-  const text = str(args, "text") ?? "";
+  const text = markdownText(args) ?? str(args, "text") ?? "";
   const blocks = Array.isArray(args.blocks) ? (args.blocks as unknown[]) : undefined;
   const attachments = Array.isArray(args.attachments) ? (args.attachments as unknown[]) : undefined;
   if (!text && !blocks?.length && !attachments?.length) throw new SlackApiError("no_text");
@@ -191,7 +204,9 @@ export const handlers: Record<string, Handler> = {
     if (existing.user !== ctx.actor.userId && !ctx.actor.isBot)
       throw new SlackApiError("cant_update_message");
     const patch: Partial<SlackMessage> = {};
-    if (args.text !== undefined) patch.text = str(args, "text") ?? "";
+    const markdown = markdownText(args);
+    if (markdown !== undefined) patch.text = markdown;
+    else if (args.text !== undefined) patch.text = str(args, "text") ?? "";
     if (args.blocks !== undefined)
       patch.blocks = Array.isArray(args.blocks) ? (args.blocks as unknown[]) : undefined;
     if (args.attachments !== undefined)
