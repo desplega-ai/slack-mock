@@ -80,8 +80,9 @@ function markdownText(args: Args): string | undefined {
 
 function messageContent(
   args: Args,
-): Pick<SlackMessage, "text" | "blocks" | "attachments" | "metadata"> {
-  const text = markdownText(args) ?? str(args, "text") ?? "";
+): Pick<SlackMessage, "text" | "blocks" | "attachments" | "metadata" | "text_format"> {
+  const markdown = markdownText(args);
+  const text = markdown ?? str(args, "text") ?? "";
   const blocks = Array.isArray(args.blocks) ? (args.blocks as unknown[]) : undefined;
   const attachments = Array.isArray(args.attachments) ? (args.attachments as unknown[]) : undefined;
   if (!text && !blocks?.length && !attachments?.length) throw new SlackApiError("no_text");
@@ -93,7 +94,13 @@ function messageContent(
     args.metadata && typeof args.metadata === "object"
       ? (args.metadata as SlackMessage["metadata"])
       : undefined;
-  return { text, blocks, attachments, metadata };
+  return {
+    text,
+    blocks,
+    attachments,
+    metadata,
+    ...(markdown !== undefined ? { text_format: "markdown" } : {}),
+  };
 }
 
 function channelInfo(store: Store, c: SlackChannel, actor: Actor): Record<string, unknown> {
@@ -205,8 +212,13 @@ export const handlers: Record<string, Handler> = {
       throw new SlackApiError("cant_update_message");
     const patch: Partial<SlackMessage> = {};
     const markdown = markdownText(args);
-    if (markdown !== undefined) patch.text = markdown;
-    else if (args.text !== undefined) patch.text = str(args, "text") ?? "";
+    if (markdown !== undefined) {
+      patch.text = markdown;
+      patch.text_format = "markdown";
+    } else if (args.text !== undefined) {
+      patch.text = str(args, "text") ?? "";
+      patch.text_format = undefined;
+    }
     if (args.blocks !== undefined)
       patch.blocks = Array.isArray(args.blocks) ? (args.blocks as unknown[]) : undefined;
     if (args.attachments !== undefined)
@@ -366,6 +378,12 @@ export const handlers: Record<string, Handler> = {
       channel: channelInfo(ctx.store, channel, ctx.actor),
       ...(errors.length ? { errors } : {}),
     };
+  },
+
+  "conversations.leave": (ctx, args) => {
+    const { notInChannel } = ctx.store.leave(required(args, "channel"), ctx.actor.userId);
+    if (notInChannel) throw new SlackApiError("not_in_channel", { not_in_channel: true });
+    return {};
   },
 
   "conversations.archive": (ctx, args) => {
@@ -607,6 +625,18 @@ export const handlers: Record<string, Handler> = {
       thread_ts: threadTs,
       status: t.status,
     });
+    return {};
+  },
+
+  // Agent session status (the "processing" / "suspended" / "active" indicator on an agent
+  // thread). Kept on the assistant thread record; the UI does not show it.
+  "agents.sessions.setStatus": (ctx, args) => {
+    const channel = ctx.store.channel(required(args, "channel_id"));
+    const threadTs = required(args, "thread_ts");
+    const status = required(args, "status");
+    if (!["processing", "suspended", "active"].includes(status))
+      throw new SlackApiError("invalid_arguments");
+    ctx.store.assistantThread(channel.id, threadTs).sessionStatus = status;
     return {};
   },
 

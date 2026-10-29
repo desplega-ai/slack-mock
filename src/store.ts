@@ -119,7 +119,14 @@ export class Store {
   readonly apiCalls: ApiCall[] = [];
   readonly assistantThreads = new Map<
     string,
-    { status?: string; title?: string; prompts?: unknown[]; promptsTitle?: string }
+    {
+      status?: string;
+      title?: string;
+      prompts?: unknown[];
+      promptsTitle?: string;
+      /** agents.sessions.setStatus: "processing", "suspended" or "active". */
+      sessionStatus?: string;
+    }
   >();
   private listeners = new Set<(change: Change) => void>();
   private dataFile?: string;
@@ -357,6 +364,16 @@ export class Store {
     channel.members.push(userId);
     this.emit({ kind: "member.join", channel, user: userId, inviter });
     return { alreadyMember: false };
+  }
+
+  leave(channelId: string, userId: string): { notInChannel: boolean } {
+    const channel = this.channel(channelId);
+    if (channel.is_archived) throw new SlackApiError("is_archived");
+    if (channel.is_general) throw new SlackApiError("cant_leave_general");
+    if (!channel.members.includes(userId)) return { notInChannel: true };
+    channel.members = channel.members.filter((m) => m !== userId);
+    this.emit({ kind: "channel.update", channel });
+    return { notInChannel: false };
   }
 
   archive(channelId: string): void {
@@ -656,7 +673,7 @@ function guessMime(ext: string): string {
 
 /** Public (wire) form of a message: mock-only fields removed, file bytes dropped. */
 export function wireMessage(m: SlackMessage): Record<string, unknown> {
-  const { ephemeral_user: _e, ...rest } = m;
+  const { ephemeral_user: _e, text_format: _f, ...rest } = m;
   if (rest.files) rest.files = rest.files.map(wireFile);
   return rest;
 }

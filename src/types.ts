@@ -103,6 +103,8 @@ export interface SlackMessage {
   thumb_64?: string;
   /** Mock-only: the user who can see an ephemeral message. Stripped on the wire. */
   ephemeral_user?: string;
+  /** Mock-only: `text` came in as `markdown_text`, so the UI renders it as Markdown. Stripped on the wire. */
+  text_format?: "markdown";
 }
 
 export interface SlackView {
