@@ -240,9 +240,15 @@ test("conversations.leave removes the caller and reports not_in_channel like Sla
   expect(mock.channel("leave-me").members).toContain(mock.bot.userId);
   await app.client.conversations.leave({ channel: id });
   expect(mock.channel("leave-me").members).not.toContain(mock.bot.userId);
-  const again = await rejected(app.client.conversations.leave({ channel: id }));
-  expect(errorCode(again)).toBe("not_in_channel");
-  expect((again as { data: { not_in_channel?: boolean } }).data.not_in_channel).toBe(true);
+  const raw = await fetch(`${mock.env.SLACK_API_URL}conversations.leave`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${mock.env.SLACK_BOT_TOKEN}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ channel: id }),
+  });
+  expect(await raw.json()).toEqual({ ok: false, not_in_channel: true });
   expect(errorCode(await rejected(app.client.conversations.leave({ channel: "C0GENERAL0" })))).toBe(
     "cant_leave_general",
   );
@@ -250,21 +256,20 @@ test("conversations.leave removes the caller and reports not_in_channel like Sla
 
 test("agents.sessions.setStatus records the session status on the thread", async () => {
   const parent = await mock.postMessage({ channel: "general", user: "alice", text: "status?" });
-  await app.client.apiCall("agents.sessions.setStatus", {
-    channel_id: "C0GENERAL0",
-    thread_ts: parent.ts,
-    status: "processing",
-  });
+  const set = async (status: string, thread = true) =>
+    (await app.client.apiCall("agents.sessions.setStatus", {
+      channel_id: "C0GENERAL0",
+      ...(thread ? { thread_ts: parent.ts } : {}),
+      status,
+    })) as { status?: string; agent_status?: string };
+  const processing = await set("processing");
+  expect(processing.status).toBe("processing");
+  expect(processing.agent_status).toBe("processing");
   expect(mock.store.assistantThread("C0GENERAL0", parent.ts).sessionStatus).toBe("processing");
-  expect(
-    errorCode(
-      await rejected(
-        app.client.apiCall("agents.sessions.setStatus", {
-          channel_id: "C0GENERAL0",
-          thread_ts: parent.ts,
-          status: "napping",
-        }),
-      ),
-    ),
-  ).toBe("invalid_arguments");
+  const closed = await set("closed");
+  expect(closed.status).toBe("closed");
+  expect(closed.agent_status).toBe("closed");
+  expect(mock.store.assistantThread("C0GENERAL0", parent.ts).sessionStatus).toBe("closed");
+  expect(errorCode(await rejected(set("napping")))).toBe("invalid_status");
+  expect(errorCode(await rejected(set("active", false)))).toBe("thread_ts_required");
 });

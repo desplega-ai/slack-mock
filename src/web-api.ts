@@ -219,8 +219,11 @@ export const handlers: Record<string, Handler> = {
       patch.text = str(args, "text") ?? "";
       patch.text_format = undefined;
     }
-    if (args.blocks !== undefined)
+    if (args.blocks !== undefined) {
       patch.blocks = Array.isArray(args.blocks) ? (args.blocks as unknown[]) : undefined;
+      // On a streamed message the new blocks replace the body rather than trail it.
+      if (existing.streaming_state !== undefined) patch.stream_replaced = true;
+    }
     if (args.attachments !== undefined)
       patch.attachments = Array.isArray(args.attachments)
         ? (args.attachments as unknown[])
@@ -290,7 +293,11 @@ export const handlers: Record<string, Handler> = {
       streaming_state: "completed",
       text: existing.text + streamText(args),
     };
-    if (Array.isArray(args.blocks)) patch.blocks = args.blocks as unknown[];
+    // Blocks handed to stopStream trail the body, even after a mid-stream chat.update.
+    if (Array.isArray(args.blocks)) {
+      patch.blocks = args.blocks as unknown[];
+      patch.stream_replaced = undefined;
+    }
     const message = ctx.store.updateMessage(channel.id, ts, patch, ctx.actor.userId, {
       markEdited: false,
     });
@@ -382,8 +389,8 @@ export const handlers: Record<string, Handler> = {
 
   "conversations.leave": (ctx, args) => {
     const { notInChannel } = ctx.store.leave(required(args, "channel"), ctx.actor.userId);
-    if (notInChannel) throw new SlackApiError("not_in_channel", { not_in_channel: true });
-    return {};
+    // Slack answers a non-member with this exact shape: ok false, no `error`.
+    return notInChannel ? { ok: false, not_in_channel: true } : {};
   },
 
   "conversations.archive": (ctx, args) => {
@@ -628,16 +635,18 @@ export const handlers: Record<string, Handler> = {
     return {};
   },
 
-  // Agent session status (the "processing" / "suspended" / "active" indicator on an agent
-  // thread). Kept on the assistant thread record; the UI does not show it.
+  // Agent session status (the "processing" / "suspended" / "active" / "closed" indicator on an
+  // agent thread). Kept on the assistant thread record; the UI does not show it. The mock has
+  // one agent per session, so the session status is the caller's own status.
   "agents.sessions.setStatus": (ctx, args) => {
     const channel = ctx.store.channel(required(args, "channel_id"));
-    const threadTs = required(args, "thread_ts");
     const status = required(args, "status");
-    if (!["processing", "suspended", "active"].includes(status))
-      throw new SlackApiError("invalid_arguments");
+    if (!["active", "processing", "suspended", "closed"].includes(status))
+      throw new SlackApiError("invalid_status");
+    const threadTs = str(args, "thread_ts");
+    if (!threadTs) throw new SlackApiError("thread_ts_required");
     ctx.store.assistantThread(channel.id, threadTs).sessionStatus = status;
-    return {};
+    return { status, agent_status: status };
   },
 
   "assistant.threads.setTitle": (ctx, args) => {

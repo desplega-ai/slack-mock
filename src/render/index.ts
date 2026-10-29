@@ -589,14 +589,12 @@ function renderMessage(
   const blocks = Array.isArray(m.blocks) && m.blocks.length ? m.blocks : undefined;
   const interactive = !opts.screenshot && !flags.ephemeral && humanUsers(store).length > 0;
   const body: string[] = [];
-  if (m.streaming_state !== undefined) {
+  if (m.streaming_state !== undefined && !m.stream_replaced) {
     // A streamed message (chat.startStream) keeps its Markdown body; the blocks handed to
-    // chat.stopStream are appended below it, like Slack does.
-    // chat.update can later hand the body over to a `markdown` block (agent-swarm resends
-    // the answer that way); the block then carries the text, so it is not shown twice.
-    const bodyInBlocks = blocks?.some((b) => (b as { type?: unknown })?.type === "markdown");
-    if (m.text && !bodyInBlocks)
-      body.push(`<div class="sm-text">${markdownToHtml(m.text, ctx)}</div>`);
+    // chat.stopStream are appended below it, like Slack does. Once chat.update replaces the
+    // blocks (agent-swarm resends the answer as a `markdown` block), they carry the body and
+    // the message renders like a posted one.
+    if (m.text) body.push(`<div class="sm-text">${markdownToHtml(m.text, ctx)}</div>`);
     if (blocks) body.push(renderBlocks(blocks, ctx));
   } else if (blocks) body.push(renderBlocks(blocks, ctx));
   else if (m.text)

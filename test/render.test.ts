@@ -289,6 +289,24 @@ describe("blocks", () => {
     expect(html).toContain(`<code class="sm-code">**raw**</code>`);
   });
 
+  test("markdown block keeps code spans inside links and headings", () => {
+    const html = renderBlocks(
+      [
+        {
+          type: "markdown",
+          text: "## Fix `foo` today\nSee [the `foo` docs](https://example.com) and **`bar` now**.",
+        },
+      ],
+      ctx,
+    );
+    expect(html).toContain(`<strong>Fix <code class="sm-code">foo</code> today</strong>`);
+    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain(`the <code class="sm-code">foo</code> docs</a>`);
+    expect(html).not.toContain("](");
+    expect(html).not.toContain("##");
+    expect(html).toContain(`<strong><code class="sm-code">bar</code> now</strong>`);
+  });
+
   test("input block for modal views", () => {
     const html = renderBlocks(
       [

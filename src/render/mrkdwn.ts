@@ -321,6 +321,7 @@ export function plainTextToHtml(text: string): string {
 }
 
 const BOLD = "\uE002";
+const CODE = /\uE003(\d+)\uE004/g;
 
 /** Markdown inline styles and line markers -> mrkdwn, for one stretch of text outside code. */
 function markdownProse(s: string): string {
@@ -342,14 +343,15 @@ function markdownProse(s: string): string {
 /**
  * Markdown (`markdown` blocks, `markdown_text` on streams) -> mrkdwn, so the mrkdwn renderer
  * shows it: **bold**, *italic*, ~~strike~~, [label](url), headings, bullets and rules.
- * Code spans and fenced code pass through untouched.
+ * Code spans and fenced code pass through untouched: they are held as placeholders while the
+ * enclosing heading, link or style is converted, then put back.
  */
 export function markdownToMrkdwn(text: string): string {
-  return text
+  const code: string[] = [];
+  const held = text
     .replace(/\r\n/g, "\n")
-    .split(/(```[\s\S]*?```|`[^`\n]+`)/)
-    .map((part, i) => (i % 2 === 1 ? part : markdownProse(part)))
-    .join("");
+    .replace(/```[\s\S]*?```|`[^`\n]+`/g, (m) => `\uE003${code.push(m) - 1}\uE004`);
+  return markdownProse(held).replace(CODE, (_m, i: string) => code[Number(i)] ?? "");
 }
 
 /** Render Markdown to HTML through the mrkdwn renderer. */

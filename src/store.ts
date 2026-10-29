@@ -124,7 +124,7 @@ export class Store {
       title?: string;
       prompts?: unknown[];
       promptsTitle?: string;
-      /** agents.sessions.setStatus: "processing", "suspended" or "active". */
+      /** agents.sessions.setStatus: "active", "processing", "suspended" or "closed". */
       sessionStatus?: string;
     }
   >();
@@ -673,7 +673,7 @@ function guessMime(ext: string): string {
 
 /** Public (wire) form of a message: mock-only fields removed, file bytes dropped. */
 export function wireMessage(m: SlackMessage): Record<string, unknown> {
-  const { ephemeral_user: _e, text_format: _f, ...rest } = m;
+  const { ephemeral_user: _e, text_format: _f, stream_replaced: _r, ...rest } = m;
   if (rest.files) rest.files = rest.files.map(wireFile);
   return rest;
 }

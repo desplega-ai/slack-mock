@@ -460,7 +460,8 @@ export class SlackMock {
     };
     try {
       const body = handler(ctx, args);
-      record(true);
+      // A handler may return `ok: false` for a documented failure without an `error` code.
+      record(body.ok !== false);
       return Response.json({ ok: true, ...body });
     } catch (e) {
       if (e instanceof SlackApiError) {
