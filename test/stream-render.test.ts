@@ -48,6 +48,76 @@ test("a streamed reply keeps its Markdown body and appends the stopStream blocks
   expect(stored.edited).toBeUndefined();
 });
 
+test("chat.update moving a stopped stream's body into a markdown block shows it once", async () => {
+  const parent = await mock.postMessage({ channel: "general", user: "alice", text: "redefer?" });
+  const started = await client.chat.startStream({
+    channel: "C0GENERAL0",
+    thread_ts: parent.ts,
+    markdown_text: "⏳ Waiting on **e2e-lead-citations**",
+  });
+  await client.chat.stopStream({ channel: "C0GENERAL0", ts: started.ts! });
+  await client.chat.update({
+    channel: "C0GENERAL0",
+    ts: started.ts!,
+    text: "⏳ Waiting on **e2e-lead-citations**",
+    blocks: [
+      { type: "markdown", text: "⏳ Waiting on **e2e-lead-citations**" },
+      { type: "context", elements: [{ type: "mrkdwn", text: "caption line" }] },
+    ],
+  });
+
+  const html = await (await fetch(`${mock.baseUrl}/c/general/t/${parent.ts}?full`)).text();
+  expect(html).not.toContain("unsupported:");
+  expect(html.split("<strong>e2e-lead-citations</strong>").length - 1).toBe(1);
+  expect(html.indexOf("caption line")).toBeGreaterThan(html.indexOf("e2e-lead-citations"));
+});
+
+test("a markdown block handed to stopStream is appended below the streamed body", async () => {
+  const parent = await mock.postMessage({ channel: "general", user: "alice", text: "footer?" });
+  const started = await client.chat.startStream({
+    channel: "C0GENERAL0",
+    thread_ts: parent.ts,
+    markdown_text: "The streamed **answer** body.",
+  });
+  await client.chat.stopStream({
+    channel: "C0GENERAL0",
+    ts: started.ts!,
+    blocks: [{ type: "markdown", text: "_Footer_ from **stop**" }],
+  });
+
+  const html = await (await fetch(`${mock.baseUrl}/c/general/t/${parent.ts}?full`)).text();
+  const bodyAt = html.indexOf("<strong>answer</strong> body.");
+  const footerAt = html.indexOf("<strong>stop</strong>");
+  expect(bodyAt).toBeGreaterThan(-1);
+  expect(footerAt).toBeGreaterThan(bodyAt);
+  const stored = mock.messages("general").find((m) => m.ts === started.ts)!;
+  expect(stored.stream_replaced).toBeUndefined();
+});
+
+test("stopStream blocks trail the body even after a mid-stream chat.update", async () => {
+  const parent = await mock.postMessage({ channel: "general", user: "alice", text: "mid?" });
+  const started = await client.chat.startStream({
+    channel: "C0GENERAL0",
+    thread_ts: parent.ts,
+    markdown_text: "Mid-stream **body** text.",
+  });
+  await client.chat.update({
+    channel: "C0GENERAL0",
+    ts: started.ts!,
+    blocks: [{ type: "context", elements: [{ type: "mrkdwn", text: "interim caption" }] }],
+  });
+  await client.chat.stopStream({
+    channel: "C0GENERAL0",
+    ts: started.ts!,
+    blocks: [{ type: "markdown", text: "final **footer**" }],
+  });
+
+  const html = await (await fetch(`${mock.baseUrl}/c/general/t/${parent.ts}?full`)).text();
+  const bodyAt = html.indexOf("<strong>body</strong> text.");
+  expect(bodyAt).toBeGreaterThan(-1);
+  expect(html.indexOf("<strong>footer</strong>")).toBeGreaterThan(bodyAt);
+});
+
 test("a plain message with blocks still renders the blocks only", async () => {
   await client.chat.postMessage({
     channel: "C0GENERAL0",

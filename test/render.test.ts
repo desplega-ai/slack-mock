@@ -269,6 +269,44 @@ describe("blocks", () => {
     expect(html).toContain("unsupported: llama_block");
   });
 
+  test("markdown block renders as Markdown, not as unsupported", () => {
+    const html = renderBlocks(
+      [
+        {
+          type: "markdown",
+          text: "## Done\n**Shipped** the *fix*, see [PR](https://example.test/pr/7).\n- one\n- two\n`**raw**`",
+        },
+      ],
+      ctx,
+    );
+    expect(html).not.toContain("unsupported:");
+    expect(html).toContain(`class="sm-block sm-markdown"`);
+    expect(html).toContain("<strong>Done</strong>");
+    expect(html).toContain("<strong>Shipped</strong>");
+    expect(html).toContain("<em>fix</em>");
+    expect(html).toContain('href="https://example.test/pr/7"');
+    expect(html).toContain(`<ul class="sm-list"><li>one</li><li>two</li></ul>`);
+    expect(html).toContain(`<code class="sm-code">**raw**</code>`);
+  });
+
+  test("markdown block keeps code spans inside links and headings", () => {
+    const html = renderBlocks(
+      [
+        {
+          type: "markdown",
+          text: "## Fix `foo` today\nSee [the `foo` docs](https://example.com) and **`bar` now**.",
+        },
+      ],
+      ctx,
+    );
+    expect(html).toContain(`<strong>Fix <code class="sm-code">foo</code> today</strong>`);
+    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain(`the <code class="sm-code">foo</code> docs</a>`);
+    expect(html).not.toContain("](");
+    expect(html).not.toContain("##");
+    expect(html).toContain(`<strong><code class="sm-code">bar</code> now</strong>`);
+  });
+
   test("input block for modal views", () => {
     const html = renderBlocks(
       [

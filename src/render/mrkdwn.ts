@@ -319,3 +319,42 @@ export function plainTextToHtml(text: string): string {
   if (!text) return "";
   return renderEmoji(reEscape(text.replace(/\r\n/g, "\n"))).replace(/\n/g, "<br>");
 }
+
+const BOLD = "\uE002";
+const CODE = /\uE003(\d+)\uE004/g;
+
+/** Markdown inline styles and line markers -> mrkdwn, for one stretch of text outside code. */
+function markdownProse(s: string): string {
+  return s
+    .replace(/^(\s*)[-*+]\s+/gm, "$1• ")
+    .replace(/^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/gm, "──────────")
+    .replace(/\*\*(.+?)\*\*/g, `${BOLD}$1${BOLD}`)
+    .replace(/__(.+?)__/g, `${BOLD}$1${BOLD}`)
+    .replace(/(^|[^*\w])\*(?![\s*])([^*\n]*[^\s*])\*(?![*\w])/g, "$1_$2_")
+    .replace(/~~(.+?)~~/g, "~$1~")
+    .replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/g, "<$2|$1>")
+    .replace(
+      /^ {0,3}#{1,6}\s+(.+?)\s*#*\s*$/gm,
+      (_m, title: string) => `${BOLD}${title.replaceAll(BOLD, "")}${BOLD}`,
+    )
+    .replaceAll(BOLD, "*");
+}
+
+/**
+ * Markdown (`markdown` blocks, `markdown_text` on streams) -> mrkdwn, so the mrkdwn renderer
+ * shows it: **bold**, *italic*, ~~strike~~, [label](url), headings, bullets and rules.
+ * Code spans and fenced code pass through untouched: they are held as placeholders while the
+ * enclosing heading, link or style is converted, then put back.
+ */
+export function markdownToMrkdwn(text: string): string {
+  const code: string[] = [];
+  const held = text
+    .replace(/\r\n/g, "\n")
+    .replace(/```[\s\S]*?```|`[^`\n]+`/g, (m) => `\uE003${code.push(m) - 1}\uE004`);
+  return markdownProse(held).replace(CODE, (_m, i: string) => code[Number(i)] ?? "");
+}
+
+/** Render Markdown to HTML through the mrkdwn renderer. */
+export function markdownToHtml(text: string, ctx: RenderContext): string {
+  return mrkdwnToHtml(markdownToMrkdwn(text), ctx);
+}

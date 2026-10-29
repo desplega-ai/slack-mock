@@ -80,8 +80,9 @@ function markdownText(args: Args): string | undefined {
 
 function messageContent(
   args: Args,
-): Pick<SlackMessage, "text" | "blocks" | "attachments" | "metadata"> {
-  const text = markdownText(args) ?? str(args, "text") ?? "";
+): Pick<SlackMessage, "text" | "blocks" | "attachments" | "metadata" | "text_format"> {
+  const markdown = markdownText(args);
+  const text = markdown ?? str(args, "text") ?? "";
   const blocks = Array.isArray(args.blocks) ? (args.blocks as unknown[]) : undefined;
   const attachments = Array.isArray(args.attachments) ? (args.attachments as unknown[]) : undefined;
   if (!text && !blocks?.length && !attachments?.length) throw new SlackApiError("no_text");
@@ -93,7 +94,13 @@ function messageContent(
     args.metadata && typeof args.metadata === "object"
       ? (args.metadata as SlackMessage["metadata"])
       : undefined;
-  return { text, blocks, attachments, metadata };
+  return {
+    text,
+    blocks,
+    attachments,
+    metadata,
+    ...(markdown !== undefined ? { text_format: "markdown" } : {}),
+  };
 }
 
 function channelInfo(store: Store, c: SlackChannel, actor: Actor): Record<string, unknown> {
@@ -205,10 +212,18 @@ export const handlers: Record<string, Handler> = {
       throw new SlackApiError("cant_update_message");
     const patch: Partial<SlackMessage> = {};
     const markdown = markdownText(args);
-    if (markdown !== undefined) patch.text = markdown;
-    else if (args.text !== undefined) patch.text = str(args, "text") ?? "";
-    if (args.blocks !== undefined)
+    if (markdown !== undefined) {
+      patch.text = markdown;
+      patch.text_format = "markdown";
+    } else if (args.text !== undefined) {
+      patch.text = str(args, "text") ?? "";
+      patch.text_format = undefined;
+    }
+    if (args.blocks !== undefined) {
       patch.blocks = Array.isArray(args.blocks) ? (args.blocks as unknown[]) : undefined;
+      // On a streamed message the new blocks replace the body rather than trail it.
+      if (existing.streaming_state !== undefined) patch.stream_replaced = true;
+    }
     if (args.attachments !== undefined)
       patch.attachments = Array.isArray(args.attachments)
         ? (args.attachments as unknown[])
@@ -278,7 +293,11 @@ export const handlers: Record<string, Handler> = {
       streaming_state: "completed",
       text: existing.text + streamText(args),
     };
-    if (Array.isArray(args.blocks)) patch.blocks = args.blocks as unknown[];
+    // Blocks handed to stopStream trail the body, even after a mid-stream chat.update.
+    if (Array.isArray(args.blocks)) {
+      patch.blocks = args.blocks as unknown[];
+      patch.stream_replaced = undefined;
+    }
     const message = ctx.store.updateMessage(channel.id, ts, patch, ctx.actor.userId, {
       markEdited: false,
     });
@@ -366,6 +385,12 @@ export const handlers: Record<string, Handler> = {
       channel: channelInfo(ctx.store, channel, ctx.actor),
       ...(errors.length ? { errors } : {}),
     };
+  },
+
+  "conversations.leave": (ctx, args) => {
+    const { notInChannel } = ctx.store.leave(required(args, "channel"), ctx.actor.userId);
+    // Slack answers a non-member with this exact shape: ok false, no `error`.
+    return notInChannel ? { ok: false, not_in_channel: true } : {};
   },
 
   "conversations.archive": (ctx, args) => {
@@ -608,6 +633,20 @@ export const handlers: Record<string, Handler> = {
       status: t.status,
     });
     return {};
+  },
+
+  // Agent session status (the "processing" / "suspended" / "active" / "closed" indicator on an
+  // agent thread). Kept on the assistant thread record; the UI does not show it. The mock has
+  // one agent per session, so the session status is the caller's own status.
+  "agents.sessions.setStatus": (ctx, args) => {
+    const channel = ctx.store.channel(required(args, "channel_id"));
+    const status = required(args, "status");
+    if (!["active", "processing", "suspended", "closed"].includes(status))
+      throw new SlackApiError("invalid_status");
+    const threadTs = str(args, "thread_ts");
+    if (!threadTs) throw new SlackApiError("thread_ts_required");
+    ctx.store.assistantThread(channel.id, threadTs).sessionStatus = status;
+    return { status, agent_status: status };
   },
 
   "assistant.threads.setTitle": (ctx, args) => {

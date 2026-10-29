@@ -7,6 +7,7 @@ import {
   emojiChar,
   emojiFromUnicode,
   escapeHtml,
+  markdownToHtml,
   mrkdwnToHtml,
   plainTextToHtml,
   type RenderContext,
@@ -296,6 +297,8 @@ function renderBlock(v: unknown, ctx: RenderContext): string {
       return `<div class="sm-block sm-file-block">📎 ${escapeHtml(str(block.external_id) || str(block.file_id) || "file")}</div>`;
     case "video":
       return videoBlock(block, ctx);
+    case "markdown":
+      return `<div class="sm-block sm-markdown">${markdownToHtml(str(block.text), ctx)}</div>`;
     default:
       return `<div class="sm-block">${unsupported(str(block.type))}</div>`;
   }

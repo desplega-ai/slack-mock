@@ -9,6 +9,7 @@ import {
   displayName,
   emojiChar,
   escapeHtml,
+  markdownToHtml,
   mrkdwnToHtml,
   plainTextToHtml,
   type RenderContext,
@@ -588,14 +589,18 @@ function renderMessage(
   const blocks = Array.isArray(m.blocks) && m.blocks.length ? m.blocks : undefined;
   const interactive = !opts.screenshot && !flags.ephemeral && humanUsers(store).length > 0;
   const body: string[] = [];
-  if (m.streaming_state !== undefined) {
+  if (m.streaming_state !== undefined && !m.stream_replaced) {
     // A streamed message (chat.startStream) keeps its Markdown body; the blocks handed to
-    // chat.stopStream are appended below it, like Slack does.
-    if (m.text)
-      body.push(`<div class="sm-text">${mrkdwnToHtml(markdownToMrkdwn(m.text), ctx)}</div>`);
+    // chat.stopStream are appended below it, like Slack does. Once chat.update replaces the
+    // blocks (agent-swarm resends the answer as a `markdown` block), they carry the body and
+    // the message renders like a posted one.
+    if (m.text) body.push(`<div class="sm-text">${markdownToHtml(m.text, ctx)}</div>`);
     if (blocks) body.push(renderBlocks(blocks, ctx));
   } else if (blocks) body.push(renderBlocks(blocks, ctx));
-  else if (m.text) body.push(`<div class="sm-text">${mrkdwnToHtml(m.text, ctx)}</div>`);
+  else if (m.text)
+    body.push(
+      `<div class="sm-text">${m.text_format === "markdown" ? markdownToHtml(m.text, ctx) : mrkdwnToHtml(m.text, ctx)}</div>`,
+    );
   if (m.edited) body.push(`<div class="sm-edited">(edited)</div>`);
   if (m.attachments?.length) body.push(renderAttachments(m.attachments, ctx));
   body.push(filesHtml(m.files, store.bot.token));
@@ -617,27 +622,6 @@ function renderMessage(
       : "";
   const open = flags.openTs && flags.openTs === m.ts ? " sm-msg-open" : "";
   return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}" data-ts="${escapeHtml(m.ts)}" data-channel="${escapeHtml(m.channel)}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
-}
-
-/**
- * Streamed messages carry Markdown (`markdown_text`), not mrkdwn. Convert the common
- * constructs so the mrkdwn renderer shows them: **bold**, [label](url), headings and list
- * bullets. Fenced code blocks pass through untouched.
- */
-function markdownToMrkdwn(text: string): string {
-  return text
-    .split(/(```[\s\S]*?```)/)
-    .map((part, i) =>
-      i % 2 === 1
-        ? part
-        : part
-            .replace(/\*\*(.+?)\*\*/g, "*$1*")
-            .replace(/__(.+?)__/g, "*$1*")
-            .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "<$2|$1>")
-            .replace(/^#{1,6}\s+(.+)$/gm, "*$1*")
-            .replace(/^(\s*)[-*]\s+/gm, "$1• "),
-    )
-    .join("");
 }
 
 function renderMessageList(

@@ -134,12 +134,15 @@ Stitch the PNGs into a GIF with ffmpeg if you want motion; the mock only produce
   `assistant_thread_context_changed`. The bot's own messages are echoed back
   like Slack does (Bolt's `ignoreSelf` drops them).
 - Web API: auth, chat (post, update, delete, ephemeral, permalink, streams,
-  `markdown_text` kept as the message text, `markdown_text_conflict` next to
-  `text` or `blocks`),
-  conversations (list, info, create, join, invite, archive, history, replies,
-  members, open), users (info, list, lookupByEmail), reactions, files
+  `markdown_text` kept as the message text and rendered as Markdown,
+  `markdown_text_conflict` next to `text` or `blocks`),
+  conversations (list, info, create, join, invite, leave, archive, history,
+  replies, members, open), users (info, list, lookupByEmail), reactions, files
   (info, upload v2 flow, download with bearer token), views (open, update,
-  push), assistant.threads (status, title, prompts), pins, bots, team.
+  push), assistant.threads (status, title, prompts), agents.sessions.setStatus,
+  pins, bots, team.
+- UI: Block Kit `markdown` blocks render as Markdown (headings, bold, italic,
+  strike, links, lists, code); unknown blocks show a gray `unsupported: <type>` box.
   Errors come back as `{ ok: false, error }` with the real codes
   (`not_in_channel`, `already_reacted`, `message_not_found`, `name_taken`,
   `expired_trigger_id`, `message_not_in_streaming_state`, ...).

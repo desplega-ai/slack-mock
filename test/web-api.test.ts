@@ -204,6 +204,10 @@ test("markdown_text posts and updates like Slack, and conflicts with text or blo
   })) as unknown as { text: string };
   expect(updated.text).toBe("**bold** edit");
   expect(mock.thread("general", posted.ts)[0]?.text).toBe("**bold** edit");
+  expect(updated).not.toHaveProperty("message.text_format");
+  const html = await (await fetch(`${mock.baseUrl}/c/general`)).text();
+  expect(html).toContain("<strong>bold</strong> edit");
+  expect(html).not.toContain("**bold** edit");
 
   expect(
     errorCode(
@@ -228,4 +232,44 @@ test("markdown_text posts and updates like Slack, and conflicts with text or blo
       ),
     ),
   ).toBe("markdown_text_conflict");
+});
+
+test("conversations.leave removes the caller and reports not_in_channel like Slack", async () => {
+  const created = await app.client.conversations.create({ name: "leave-me" });
+  const id = created.channel!.id!;
+  expect(mock.channel("leave-me").members).toContain(mock.bot.userId);
+  await app.client.conversations.leave({ channel: id });
+  expect(mock.channel("leave-me").members).not.toContain(mock.bot.userId);
+  const raw = await fetch(`${mock.env.SLACK_API_URL}conversations.leave`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${mock.env.SLACK_BOT_TOKEN}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ channel: id }),
+  });
+  expect(await raw.json()).toEqual({ ok: false, not_in_channel: true });
+  expect(errorCode(await rejected(app.client.conversations.leave({ channel: "C0GENERAL0" })))).toBe(
+    "cant_leave_general",
+  );
+});
+
+test("agents.sessions.setStatus records the session status on the thread", async () => {
+  const parent = await mock.postMessage({ channel: "general", user: "alice", text: "status?" });
+  const set = async (status: string, thread = true) =>
+    (await app.client.apiCall("agents.sessions.setStatus", {
+      channel_id: "C0GENERAL0",
+      ...(thread ? { thread_ts: parent.ts } : {}),
+      status,
+    })) as { status?: string; agent_status?: string };
+  const processing = await set("processing");
+  expect(processing.status).toBe("processing");
+  expect(processing.agent_status).toBe("processing");
+  expect(mock.store.assistantThread("C0GENERAL0", parent.ts).sessionStatus).toBe("processing");
+  const closed = await set("closed");
+  expect(closed.status).toBe("closed");
+  expect(closed.agent_status).toBe("closed");
+  expect(mock.store.assistantThread("C0GENERAL0", parent.ts).sessionStatus).toBe("closed");
+  expect(errorCode(await rejected(set("napping")))).toBe("invalid_status");
+  expect(errorCode(await rejected(set("active", false)))).toBe("thread_ts_required");
 });
