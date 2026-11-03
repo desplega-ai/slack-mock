@@ -15,7 +15,11 @@ import {
   slashCommandPayload,
   viewSubmissionPayload,
 } from "./events.ts";
-import { HttpDelivery, type HttpDeliveryOptions } from "./http-delivery.ts";
+import {
+  HttpDelivery,
+  type HttpDeliveryOptions,
+  HttpDeliveryStoppedError,
+} from "./http-delivery.ts";
 import { slackId } from "./ids.ts";
 import { renderPage } from "./render/index.ts";
 import {
@@ -332,7 +336,7 @@ export class SlackMock {
       SLACK_BOT_TOKEN: this.store.bot.token,
       SLACK_APP_TOKEN: this.store.bot.appToken,
       SLACK_API_URL: this.apiUrl,
-      SLACK_SIGNING_SECRET: "mock-signing-secret",
+      SLACK_SIGNING_SECRET: this.opts.httpDelivery?.signingSecret ?? "mock-signing-secret",
     };
   }
 
@@ -350,6 +354,7 @@ export class SlackMock {
 
   async stop(): Promise<void> {
     this.hub.shutdown();
+    if (this.delivery instanceof HttpDelivery) this.delivery.shutdown();
     await Promise.allSettled([...this.inflight]);
     this.server.stop(true);
   }
@@ -699,7 +704,7 @@ export class SlackMock {
     const wrapped = p.then(
       () => {},
       (e) => {
-        if (!(e instanceof SocketModeClosedError))
+        if (!(e instanceof SocketModeClosedError || e instanceof HttpDeliveryStoppedError))
           this.log(`delivery failed: ${e instanceof Error ? e.message : e}`);
       },
     );

@@ -184,4 +184,105 @@ describe("HTTP delivery", () => {
     });
     expect(await delivery.verifyUrl()).toBe(true);
   });
+
+  test("stop() cancels a pending retry: it resolves promptly and nothing is delivered afterwards", async () => {
+    let hits = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        hits++;
+        return new Response("no", { status: 500 });
+      },
+    });
+    stops.push(() => server.stop(true));
+    const mock = await SlackMock.start({
+      port: 0,
+      subscribedEvents: ["app_mention"],
+      httpDelivery: {
+        eventsUrl: `http://127.0.0.1:${server.port}/`,
+        signingSecret: SECRET,
+        retryDelaysMs: [400, 400],
+      },
+    });
+    // postMessage resolves once the delivery settles, so it stays pending through the retry wait.
+    const posted = mock.postMessage({
+      channel: "general",
+      user: "alice",
+      text: `<@${mock.bot.userId}> hi`,
+    });
+    await Bun.sleep(50); // the first attempt failed; the redelivery is waiting
+    expect(hits).toBe(1);
+    const started = Date.now();
+    await mock.stop();
+    await posted;
+    expect(Date.now() - started).toBeLessThan(200);
+    await Bun.sleep(900); // past both retry delays
+    expect(hits).toBe(1);
+  });
+
+  test("stop() aborts a request still in flight and refuses new ones", async () => {
+    let hits = 0;
+    const server = Bun.serve({
+      port: 0,
+      async fetch() {
+        hits++;
+        await Bun.sleep(1_500);
+        return new Response("");
+      },
+    });
+    stops.push(() => server.stop(true));
+    const delivery = new HttpDelivery({
+      eventsUrl: `http://127.0.0.1:${server.port}/`,
+      signingSecret: SECRET,
+      retryDelaysMs: [1],
+      timeoutMs: 10_000,
+    });
+    const pending = delivery.send("events_api", { event: { type: "message" } });
+    const settled = pending.then(
+      () => "acked",
+      (e: Error) => e.message,
+    );
+    await Bun.sleep(50);
+    const started = Date.now();
+    delivery.shutdown();
+    expect(await settled).toBe("mock stopped");
+    expect(Date.now() - started).toBeLessThan(200);
+    await expect(delivery.send("slash_commands", { command: "/x" }, true)).rejects.toThrow(
+      "mock stopped",
+    );
+    await Bun.sleep(50);
+    expect(hits).toBe(1);
+  });
+
+  test("mock.env carries the configured signing secret, so an app built from it verifies deliveries", async () => {
+    const seen: Array<{ ts: string; sig: string; body: string }> = [];
+    const server = Bun.serve({
+      port: 0,
+      async fetch(req) {
+        seen.push({
+          ts: req.headers.get("x-slack-request-timestamp") ?? "",
+          sig: req.headers.get("x-slack-signature") ?? "",
+          body: await req.text(),
+        });
+        return new Response("");
+      },
+    });
+    stops.push(() => server.stop(true));
+    const mock = await SlackMock.start({
+      port: 0,
+      subscribedEvents: ["app_mention"],
+      httpDelivery: { eventsUrl: `http://127.0.0.1:${server.port}/`, signingSecret: "custom" },
+    });
+    stops.push(() => mock.stop());
+    await mock.postMessage({ channel: "general", user: "alice", text: `<@${mock.bot.userId}> hi` });
+    const secret = mock.env.SLACK_SIGNING_SECRET as string;
+    expect(secret).toBe("custom");
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.sig).toBe(slackSignature(secret, seen[0]?.ts ?? "", seen[0]?.body ?? ""));
+
+    // Socket Mode keeps the v0.5.0 default.
+    const socket = await SlackMock.start({ port: 0 });
+    stops.push(() => socket.stop());
+    expect(socket.env.SLACK_SIGNING_SECRET).toBe("mock-signing-secret");
+  });
 });

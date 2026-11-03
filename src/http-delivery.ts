@@ -29,6 +29,13 @@ export function slackSignature(secret: string, timestamp: string | number, body:
 
 export class HttpDeliveryError extends Error {}
 
+/** Thrown by a delivery cut short by `shutdown()`; the mock treats it as a clean stop. */
+export class HttpDeliveryStoppedError extends HttpDeliveryError {
+  constructor() {
+    super("mock stopped");
+  }
+}
+
 type Attempt = { ok: true; payload?: unknown } | { ok: false; reason: string };
 
 /**
@@ -47,6 +54,9 @@ export class HttpDelivery {
     log: (msg: string) => void;
   };
 
+  private readonly stopController = new AbortController();
+  private retryTimers = new Set<{ timer: ReturnType<typeof setTimeout>; wake: () => void }>();
+
   constructor(opts: HttpDeliveryOptions) {
     this.opts = {
       eventsUrl: opts.eventsUrl,
@@ -57,6 +67,37 @@ export class HttpDelivery {
       timeoutMs: opts.timeoutMs ?? 3_000,
       log: opts.log ?? (() => {}),
     };
+  }
+
+  /**
+   * Cancel everything pending: abort in-flight requests, wake every retry wait so its
+   * `send` rejects with `HttpDeliveryStoppedError`, and refuse new requests.
+   */
+  shutdown(): void {
+    this.stopController.abort();
+    for (const t of this.retryTimers) {
+      clearTimeout(t.timer);
+      t.wake();
+    }
+    this.retryTimers.clear();
+  }
+
+  private get stopped(): boolean {
+    return this.stopController.signal.aborted;
+  }
+
+  /** Wait `ms` before a redelivery; `shutdown()` ends the wait early. */
+  private waitToRetry(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const entry = {
+        timer: setTimeout(() => {
+          this.retryTimers.delete(entry);
+          resolve();
+        }, ms),
+        wake: resolve,
+      };
+      this.retryTimers.add(entry);
+    });
   }
 
   /** An HTTP app is always "connected": nothing to wait for. */
@@ -89,6 +130,7 @@ export class HttpDelivery {
     payload: unknown,
     _acceptsResponsePayload = false,
   ): Promise<AckResult> {
+    if (this.stopped) throw new HttpDeliveryStoppedError();
     const record: DeliveryRecord = {
       envelope_id: crypto.randomUUID(),
       type,
@@ -104,6 +146,7 @@ export class HttpDelivery {
     for (let attempt = 0; ; attempt++) {
       record.attempts = attempt + 1;
       const res = await this.post(url, body, contentType, retry ? this.retryHeaders(retry) : {});
+      if (this.stopped) throw new HttpDeliveryStoppedError();
       if (res.ok) {
         record.acked = true;
         record.ackPayload = res.payload;
@@ -116,7 +159,8 @@ export class HttpDelivery {
         );
       }
       this.opts.log(`${record.name} to ${url}: ${res.reason}; retry ${attempt + 1} in ${delay}ms`);
-      await Bun.sleep(delay);
+      await this.waitToRetry(delay);
+      if (this.stopped) throw new HttpDeliveryStoppedError();
       retry = { num: attempt + 1, reason: res.reason };
     }
   }
@@ -158,6 +202,7 @@ export class HttpDelivery {
     contentType: string,
     extraHeaders: Record<string, string>,
   ): Promise<Attempt & { text?: string }> {
+    if (this.stopped) return { ok: false, reason: "stopped" };
     const timestamp = Math.floor(Date.now() / 1000);
     try {
       const res = await fetch(url, {
@@ -170,7 +215,10 @@ export class HttpDelivery {
           ...extraHeaders,
         },
         body,
-        signal: AbortSignal.timeout(this.opts.timeoutMs),
+        signal: AbortSignal.any([
+          AbortSignal.timeout(this.opts.timeoutMs),
+          this.stopController.signal,
+        ]),
       });
       if (!res.ok) {
         await res.body?.cancel();
