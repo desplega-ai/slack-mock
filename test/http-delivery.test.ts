@@ -6,7 +6,7 @@ import { HttpDelivery, SlackMock, slackSignature } from "../src/index.ts";
 const SECRET = "test-signing-secret";
 
 /** A real Bolt app on its HTTP receiver: Bolt itself verifies the signature on every request. */
-async function httpApp(mock: () => SlackMock) {
+async function httpApp() {
   const receiver = new HTTPReceiver({ signingSecret: SECRET, endpoints: "/slack/events" });
   const app = new App({
     receiver,
@@ -23,7 +23,7 @@ async function httpApp(mock: () => SlackMock) {
   return { app, url, stop: () => app.stop() };
 }
 
-const stops: Array<() => Promise<unknown> | void> = [];
+const stops: Array<() => unknown> = [];
 afterEach(async () => {
   for (const stop of stops.splice(0)) await stop();
 });
@@ -31,7 +31,7 @@ afterEach(async () => {
 describe("HTTP delivery", () => {
   test("signs events, slash commands and interactivity so a Bolt HTTP receiver accepts them", async () => {
     const got: string[] = [];
-    const { app, url, stop } = await httpApp(() => mock);
+    const { app, url, stop } = await httpApp();
     stops.push(stop);
     app.event("app_mention", async ({ event }) => {
       got.push(`mention:${event.text}`);
@@ -58,7 +58,7 @@ describe("HTTP delivery", () => {
       user: "alice",
       text: `<@${mock.bot.userId}> hello`,
     });
-    expect(got).toContain("mention:<@" + mock.bot.userId + "> hello");
+    expect(got).toContain(`mention:<@${mock.bot.userId}> hello`);
 
     const { ack, response } = await mock.slashCommand({ command: "/hello", channel: "general" });
     expect(ack.attempts).toBe(1);
@@ -88,7 +88,7 @@ describe("HTTP delivery", () => {
   });
 
   test("answers a wrong signature with a refused delivery", async () => {
-    const { url, stop } = await httpApp(() => mock);
+    const { url, stop } = await httpApp();
     stops.push(stop);
     const mock = await SlackMock.start({
       port: 0,
