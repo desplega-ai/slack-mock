@@ -57,7 +57,7 @@ export interface DeliveryRecord {
   ackPayload?: unknown;
 }
 
-function envelopeName(type: EnvelopeType, payload: unknown): string {
+export function envelopeName(type: EnvelopeType, payload: unknown): string {
   const p = payload as Record<string, unknown>;
   if (type === "events_api")
     return String((p.event as Record<string, unknown> | undefined)?.type ?? "event");

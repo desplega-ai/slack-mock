@@ -15,6 +15,11 @@ import {
   slashCommandPayload,
   viewSubmissionPayload,
 } from "./events.ts";
+import {
+  HttpDelivery,
+  type HttpDeliveryOptions,
+  HttpDeliveryStoppedError,
+} from "./http-delivery.ts";
 import { slackId } from "./ids.ts";
 import { renderPage } from "./render/index.ts";
 import {
@@ -101,6 +106,11 @@ export interface SlackMockOptions extends StoreOptions {
    * admin credential. `adminAuth` always implies it.
    */
   presenterAuth?: string;
+  /**
+   * Deliver events, slash commands and interactivity as signed HTTP requests to the app's request
+   * URLs instead of over Socket Mode (Slack's HTTP mode). The app needs no WebSocket connection.
+   */
+  httpDelivery?: HttpDeliveryOptions;
   log?: boolean | ((msg: string) => void);
 }
 
@@ -165,6 +175,11 @@ interface ResponseUrl {
 export class SlackMock {
   readonly store: Store;
   readonly hub: SocketModeHub;
+  /** Where deliveries go: the HTTP request URLs when `httpDelivery` is set, else the Socket Mode hub. */
+  readonly delivery: Pick<
+    SocketModeHub,
+    "send" | "connectionCount" | "history" | "waitForConnection"
+  >;
   readonly opts: SlackMockOptions;
   private server!: Server<ConnData>;
   private triggerIds = new Map<string, number>();
@@ -198,6 +213,9 @@ export class SlackMock {
       maxRetries: opts.maxRetries,
       log: this.log,
     });
+    this.delivery = opts.httpDelivery
+      ? new HttpDelivery({ log: this.log, ...opts.httpDelivery })
+      : this.hub;
     this.subscribed = new Set(
       opts.subscribedEvents ??
         manifest?.settings?.event_subscriptions?.bot_events ??
@@ -318,7 +336,7 @@ export class SlackMock {
       SLACK_BOT_TOKEN: this.store.bot.token,
       SLACK_APP_TOKEN: this.store.bot.appToken,
       SLACK_API_URL: this.apiUrl,
-      SLACK_SIGNING_SECRET: "mock-signing-secret",
+      SLACK_SIGNING_SECRET: this.opts.httpDelivery?.signingSecret ?? "mock-signing-secret",
     };
   }
 
@@ -327,7 +345,7 @@ export class SlackMock {
   }
   /** Number of Socket Mode connections the app currently holds. */
   get connectionCount(): number {
-    return this.hub.connectionCount;
+    return this.delivery.connectionCount;
   }
 
   get team() {
@@ -336,6 +354,7 @@ export class SlackMock {
 
   async stop(): Promise<void> {
     this.hub.shutdown();
+    if (this.delivery instanceof HttpDelivery) this.delivery.shutdown();
     await Promise.allSettled([...this.inflight]);
     this.server.stop(true);
   }
@@ -596,7 +615,7 @@ export class SlackMock {
     const opts = {
       screenshot,
       refreshSec: Number.isFinite(refresh) && refresh > 0 ? refresh : undefined,
-      connections: this.hub.connectionCount,
+      connections: this.delivery.connectionCount,
       panelWidth: panel
         ? /^\d+$/.test(panel)
           ? `${panel}%`
@@ -685,7 +704,7 @@ export class SlackMock {
     const wrapped = p.then(
       () => {},
       (e) => {
-        if (!(e instanceof SocketModeClosedError))
+        if (!(e instanceof SocketModeClosedError || e instanceof HttpDeliveryStoppedError))
           this.log(`delivery failed: ${e instanceof Error ? e.message : e}`);
       },
     );
@@ -695,7 +714,7 @@ export class SlackMock {
   }
 
   private push(event: Record<string, unknown>): Promise<void> {
-    if (this.hub.connectionCount === 0) {
+    if (this.delivery.connectionCount === 0) {
       this.log(
         `dropping ${event.type}${event.subtype ? `/${event.subtype}` : ""} event: no app connected`,
       );
@@ -703,7 +722,7 @@ export class SlackMock {
     }
     const send = async () => {
       if (this.opts.eventDelayMs) await Bun.sleep(this.opts.eventDelayMs);
-      await this.hub.send("events_api", eventCallback(this.store, event));
+      await this.delivery.send("events_api", eventCallback(this.store, event));
     };
     return this.track(send());
   }
@@ -962,7 +981,7 @@ export class SlackMock {
       responseUrl,
       triggerId: this.issueTriggerId(),
     });
-    const ack = await this.hub.send("slash_commands", payload, true);
+    const ack = await this.delivery.send("slash_commands", payload, true);
     let response: SlackMessage | undefined;
     const body = ack.payload as
       | { text?: string; blocks?: unknown[]; response_type?: string }
@@ -1024,7 +1043,7 @@ export class SlackMock {
         },
       ],
     });
-    const ack = await this.hub.send("interactive", payload, true);
+    const ack = await this.delivery.send("interactive", payload, true);
     await this.flush();
     return ack;
   }
@@ -1051,7 +1070,7 @@ export class SlackMock {
       values: input.values,
       triggerId: this.issueTriggerId(),
     });
-    const ack = await this.hub.send("interactive", payload, true);
+    const ack = await this.delivery.send("interactive", payload, true);
     // Slack keeps the modal open on `errors`, swaps it on `update`, stacks on `push`, closes otherwise.
     const response = (ack.payload ?? {}) as {
       response_action?: string;
@@ -1108,7 +1127,7 @@ export class SlackMock {
     const threadTs = root.ts;
     if (this.isSubscribed("assistant_thread_started")) {
       await this.track(
-        this.hub.send(
+        this.delivery.send(
           "events_api",
           eventCallback(
             this.store,
@@ -1129,7 +1148,7 @@ export class SlackMock {
     const user = input.user ? this.user(input.user) : this.defaultHuman();
     const dm = this.resolveChannel(input.channel);
     await this.track(
-      this.hub.send(
+      this.delivery.send(
         "events_api",
         eventCallback(
           this.store,
@@ -1171,7 +1190,7 @@ export class SlackMock {
 
   /** Every Socket Mode envelope pushed to the app, with ack status. */
   deliveries(name?: string): DeliveryRecord[] {
-    return name ? this.hub.history.filter((d) => d.name === name) : [...this.hub.history];
+    return name ? this.delivery.history.filter((d) => d.name === name) : [...this.delivery.history];
   }
 
   apiCalls(method?: string): ApiCall[] {
@@ -1256,7 +1275,7 @@ export class SlackMock {
   }
 
   waitForConnection(timeoutMs = 15_000): Promise<void> {
-    return this.hub.waitForConnection(timeoutMs);
+    return this.delivery.waitForConnection(timeoutMs);
   }
 
   disconnectSockets(reason?: Parameters<SocketModeHub["disconnectAll"]>[0]): void {
@@ -1283,7 +1302,7 @@ export class SlackMock {
           team: this.store.team,
           app: this.store.app,
           bot: { userId: this.store.bot.userId, botId: this.store.bot.botId },
-          connections: this.hub.connectionCount,
+          connections: this.delivery.connectionCount,
           users: [...this.store.users.values()],
           channels: [...this.store.channels.values()],
         });
