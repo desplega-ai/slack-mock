@@ -89,6 +89,34 @@ What tests can do:
 The same operations exist over HTTP under `/mock/*` for use from another
 process (see `docs/design.md`).
 
+## HTTP mode (signed requests)
+
+For apps that take Slack's HTTP transport, the mock can post deliveries to request URLs instead of
+pushing them over a WebSocket. Every request carries `X-Slack-Request-Timestamp` and an
+`X-Slack-Signature` (`v0=` HMAC-SHA256 of `v0:<timestamp>:<raw body>`) made with the signing secret
+you give it.
+
+```bash
+slack-mock serve --http-events-url http://127.0.0.1:3013/slack/events --signing-secret "$SLACK_SIGNING_SECRET" \
+  [--http-interactivity-url URL] [--http-commands-url URL] [--http-retry-delays-ms 1000,5000,30000]
+```
+
+```ts
+const slack = await SlackMock.start({
+  httpDelivery: { eventsUrl, signingSecret, interactivityUrl, commandsUrl, retryDelaysMs: [1000, 5000], timeoutMs: 3000 },
+});
+```
+
+| Delivery | Request |
+|---|---|
+| Events API | JSON body (the `event_callback` payload). Redelivered on a non-2xx, a timeout (`timeoutMs`, default 3s) or a refused connection, with `X-Slack-Retry-Num` and `X-Slack-Retry-Reason` (`http_error`, `http_timeout`, `connection_failed`), after each `retryDelaysMs` entry (default 1 min, 5 min, 30 min). |
+| Slash commands | Form-encoded fields. Posted once. A JSON response body is the ack payload. |
+| Interactivity | Form with one `payload` field. Posted once. A JSON response body is the ack payload. |
+
+Interactivity and slash commands go to `eventsUrl` unless their own URL is set. `deliveries()` lists every
+request with its attempts and ack status. `new HttpDelivery(...).verifyUrl()` runs the `url_verification`
+challenge. Socket Mode stays the default; with `httpDelivery` set no app connection is needed.
+
 ## Frames from a journal
 
 A run recorded with `dataFile` can be replayed into one PNG per event that touched a

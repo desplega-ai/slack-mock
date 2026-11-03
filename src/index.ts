@@ -1,5 +1,7 @@
 export type { Frame, FramesOptions, FramesResult } from "./frames.ts";
 export { frames } from "./frames.ts";
+export type { HttpDeliveryOptions } from "./http-delivery.ts";
+export { HttpDelivery, HttpDeliveryError, slackSignature } from "./http-delivery.ts";
 export { findChrome, screenshot } from "./screenshot.ts";
 export type {
   Fault,

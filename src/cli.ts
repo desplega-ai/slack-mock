@@ -9,6 +9,8 @@ const USAGE = `slack-mock: a mock Slack server (Web API + Socket Mode) for testi
 Usage:
   slack-mock serve [--port 4040] [--host 127.0.0.1] [--data ./data/slack.jsonl] [--manifest app.json]
                    [--no-seed] [--quiet] [--panel 50] [--auth user:pass] [--public-url https://mock.example.com]
+                   [--http-events-url URL --signing-secret SECRET [--http-interactivity-url URL]
+                    [--http-commands-url URL] [--http-retry-delays-ms 1000,5000,30000]]
   slack-mock screenshot <url> --out shot.png [--width 800] [--height 1000]
   slack-mock frames --journal data.jsonl --channel C0GENERAL0 [--thread 1788516626.286000] --out ./frames
                     [--manifest app.json] [--width 800] [--height 700] [--no-desktop]
@@ -37,9 +39,28 @@ async function main(argv: string[]): Promise<void> {
         panel: { type: "string" },
         auth: { type: "string" },
         "public-url": { type: "string" },
+        "http-events-url": { type: "string" },
+        "http-interactivity-url": { type: "string" },
+        "http-commands-url": { type: "string" },
+        "http-retry-delays-ms": { type: "string" },
+        "signing-secret": { type: "string" },
       },
     });
+    const eventsUrl = values["http-events-url"];
+    if (eventsUrl && !values["signing-secret"])
+      throw new Error("--http-events-url needs --signing-secret");
     const mock = await SlackMock.start({
+      httpDelivery: eventsUrl
+        ? {
+            eventsUrl,
+            interactivityUrl: values["http-interactivity-url"],
+            commandsUrl: values["http-commands-url"],
+            signingSecret: values["signing-secret"] as string,
+            retryDelaysMs: values["http-retry-delays-ms"]
+              ? values["http-retry-delays-ms"].split(",").map(Number)
+              : undefined,
+          }
+        : undefined,
       panelWidth: values.panel,
       adminAuth: values.auth,
       publicUrl: values["public-url"],
