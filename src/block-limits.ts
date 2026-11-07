@@ -11,15 +11,17 @@ const rec = (v: unknown): Rec | undefined =>
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
-/** Characters a cell contributes to the table budget. */
+/** Characters a cell contributes to the table budget. data_table docs: an action_cell's button text counts. */
 function cellChars(v: unknown): number {
   const cell = rec(v);
   if (!cell) return 0;
+  if (cell.type === "action_cell") return str(rec(rec(cell.element)?.text)?.text).length;
   if (typeof cell.text === "string") return cell.text.length;
   return arr(cell.elements).reduce<number>((n, e) => n + cellChars(e), 0);
 }
 
-function tableIssues(b: Rec, at: string, data: boolean): string[] {
+/** Issues for one table block, plus its cell characters for the per-message budget. */
+function tableIssues(b: Rec, at: string, data: boolean): { out: string[]; chars: number } {
   const out: string[] = [];
   const rows = arr(b.rows);
   const [minRows, maxRows, maxChars] = data ? [2, 201, 20000] : [1, 100, 10000];
@@ -37,11 +39,13 @@ function tableIssues(b: Rec, at: string, data: boolean): string[] {
       out.push(`all rows must have the same number of cells [json-pointer:${at}/rows/${i}]`);
     cells.forEach((c, j) => {
       const type = str(rec(c)?.type);
-      if (
-        !cellTypes.includes(type) ||
-        (data && i === 0 && type !== "raw_text" && type !== "raw_number")
-      )
+      // data_table docs exclude only rich_text from the header row.
+      if (!cellTypes.includes(type) || (data && i === 0 && type === "rich_text"))
         out.push(`invalid cell type "${type}" [json-pointer:${at}/rows/${i}/${j}]`);
+      else if (type === "action_cell" && str(rec(rec(c)?.element)?.type) !== "button")
+        out.push(
+          `action_cell element must be a button [json-pointer:${at}/rows/${i}/${j}/element]`,
+        );
       chars += cellChars(c);
     });
   });
@@ -58,7 +62,7 @@ function tableIssues(b: Rec, at: string, data: boolean): string[] {
   } else if (arr(b.column_settings).length > 20) {
     out.push(`column_settings must have at most 20 items [json-pointer:${at}/column_settings]`);
   }
-  return out;
+  return { out, chars };
 }
 
 const label = (v: unknown) => str(v).length >= 1 && str(v).length <= 20;
@@ -89,6 +93,12 @@ function chartIssues(b: Rec, at: string): string[] {
   const categories = arr(axis?.categories).map(str);
   if (!categories.length)
     out.push(`axis_config.categories is required [json-pointer:${at}/chart/axis_config]`);
+  categories.forEach((c, i) => {
+    if (c.length > 20)
+      out.push(
+        `category must have at most 20 characters [json-pointer:${at}/chart/axis_config/categories/${i}]`,
+      );
+  });
   for (const k of ["x_label", "y_label"])
     if (str(axis?.[k]).length > 50)
       out.push(`${k} must have at most 50 characters [json-pointer:${at}/chart/axis_config/${k}]`);
@@ -112,7 +122,9 @@ function chartIssues(b: Rec, at: string): string[] {
       out.push(
         `data points need a 1-20 character label and a number value [json-pointer:${at}/chart/series/${i}/data]`,
       );
-    if (labels.some((l) => !categories.includes(l)) || categories.some((c) => !labels.includes(c)))
+    // "Must contain exactly one entry for every label in axis_config.categories."
+    const count = (c: string) => labels.filter((l) => l === c).length;
+    if (labels.some((l) => !categories.includes(l)) || categories.some((c) => count(c) !== 1))
       out.push(
         `data labels must match axis_config.categories [json-pointer:${at}/chart/series/${i}/data]`,
       );
@@ -126,16 +138,20 @@ export function validateBlocks(blocks: unknown[] | undefined): void {
   const issues: string[] = [];
   if (blocks.length > 50) issues.push("must have at most 50 blocks");
   let charts = 0;
+  // Per-message cell budgets. Each doc states its own aggregate limit
+  // (table 10,000, data_table 20,000), so each type is summed on its own.
+  const budget = { table: 0, data_table: 0 };
   blocks.forEach((v, i) => {
     const b = rec(v);
     const at = `/blocks/${i}`;
     switch (str(b?.type)) {
       case "table":
-        issues.push(...tableIssues(b as Rec, at, false));
+      case "data_table": {
+        const t = tableIssues(b as Rec, at, b?.type === "data_table");
+        issues.push(...t.out);
+        budget[b?.type as keyof typeof budget] += t.chars;
         break;
-      case "data_table":
-        issues.push(...tableIssues(b as Rec, at, true));
-        break;
+      }
       case "data_visualization":
         if (++charts > 2)
           issues.push(`at most 2 data_visualization blocks per message [json-pointer:${at}]`);
@@ -143,6 +159,10 @@ export function validateBlocks(blocks: unknown[] | undefined): void {
         break;
     }
   });
+  if (budget.table > 10000)
+    issues.push("table cells must have at most 10000 characters in total per message");
+  if (budget.data_table > 20000)
+    issues.push("data_table cells must have at most 20000 characters in total per message");
   if (issues.length)
     throw new SlackApiError("invalid_blocks", {
       response_metadata: { messages: issues.map((m) => `[ERROR] ${m}`) },

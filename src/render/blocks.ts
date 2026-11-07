@@ -171,7 +171,10 @@ function richElement(v: unknown, ctx: RenderContext): string {
     case "emoji": {
       const char =
         emojiChar(str(el.name)) ?? (el.unicode ? emojiFromUnicode(str(el.unicode)) : undefined);
-      return char ?? `<span class="sm-emoji-name">:${escapeHtml(str(el.name))}:</span>`;
+      // `unicode` is caller-supplied codepoints, so the decoded string can be markup.
+      return char
+        ? escapeHtml(char)
+        : `<span class="sm-emoji-name">:${escapeHtml(str(el.name))}:</span>`;
     }
     case "date":
       return plainTextToHtml(str(el.fallback) || str(el.timestamp));
@@ -278,8 +281,10 @@ function tableCell(v: unknown, ctx: RenderContext): string {
     return arr(cell.elements)
       .map((e) => richSection(e, ctx))
       .join("");
-  if (str(cell.type) === "action_cell")
-    return rec(cell.button) ? button(rec(cell.button) as Rec, ctx) : tableCell(cell.fallback, ctx);
+  if (str(cell.type) === "action_cell") {
+    const el = rec(cell.element);
+    return el && str(el.type) === "button" ? button(el, ctx) : tableCell(cell.fallback, ctx);
+  }
   return plainTextToHtml(str(cell.text) || (cell.value === undefined ? "" : String(cell.value)));
 }
 
@@ -288,9 +293,16 @@ function tableBlock(block: Rec, ctx: RenderContext): string {
   const settings = arr(block.column_settings).map(rec);
   const rows = arr(block.rows).map(arr);
   // data_table pages at 5 rows unless page_size says otherwise; table never pages.
-  const pageSize = block.type === "data_table" ? Number(block.page_size) || 5 : 0;
+  // Rendering also runs on unvalidated blocks, so an out-of-range page_size falls back to 5.
+  const ps = Number(block.page_size);
+  const pageSize = block.type === "data_table" ? (Number.isInteger(ps) && ps >= 1 ? ps : 5) : 0;
   const head = block.type === "data_table" ? 1 : 0;
-  const body = pageSize > 0 ? rows.slice(head, pageSize + head) : rows.slice(head);
+  const body = rows.slice(head);
+  // Every page is rendered; pages after the first start hidden and the pager
+  // buttons (uiScript) flip them, so no row is out of reach.
+  const per = pageSize || body.length || 1;
+  const pages: unknown[][][] = [];
+  for (let i = 0; i < body.length || i === 0; i += per) pages.push(body.slice(i, i + per));
   const row = (cells: unknown[], tag: "th" | "td") =>
     `<tr>${cells
       .map((c, i) => {
@@ -305,11 +317,19 @@ function tableBlock(block: Rec, ctx: RenderContext): string {
   const caption = str(block.caption)
     ? `<div class="sm-table-caption">${plainTextToHtml(str(block.caption))}</div>`
     : "";
-  const pager =
-    body.length < rows.length - 1
-      ? `<div class="sm-table-pager">1–${body.length} of ${rows.length - 1}</div>`
-      : "";
-  return `<div class="sm-block sm-table-block">${caption}<div class="sm-table-wrap"><table class="sm-bk-table">${head && rows.length ? `<thead>${row(rows[0] ?? [], "th")}</thead>` : ""}<tbody>${body.map((r) => row(r, "td")).join("")}</tbody></table></div>${pager}</div>`;
+  const paged = pages.length > 1;
+  const range = (p: number) =>
+    `${p * per + 1}–${p * per + (pages[p]?.length ?? 0)} of ${body.length}`;
+  const pager = paged
+    ? `<div class="sm-table-pager"><button type="button" class="sm-pager-btn" data-step="-1" aria-label="Previous page" disabled>‹</button><span class="sm-pager-label">${range(0)}</span><button type="button" class="sm-pager-btn" data-step="1" aria-label="Next page">›</button></div>`
+    : "";
+  const tbodies = pages
+    .map(
+      (pg, p) =>
+        `<tbody${paged ? ` data-range="${range(p)}"` : ""}${p ? " hidden" : ""}>${pg.map((r) => row(r, "td")).join("")}</tbody>`,
+    )
+    .join("");
+  return `<div class="sm-block sm-table-block">${caption}<div class="sm-table-wrap"><table class="sm-bk-table">${head && rows.length ? `<thead>${row(rows[0] ?? [], "th")}</thead>` : ""}${tbodies}</table></div>${pager}</div>`;
 }
 
 const CHART_COLORS = ["#1264a3", "#2eb67d", "#ecb22e", "#e01e5a", "#36c5f0", "#7c3085"];
@@ -342,22 +362,26 @@ function pieChart(chart: Rec): string {
   return `<svg class="sm-chart-svg" viewBox="0 0 200 200" width="200" height="200">${slices.join("")}</svg>${legend(segments.map((s) => `${str(s?.label)} (${num(s?.value)})`))}`;
 }
 
-/** bar, line and area share axes: categories on x, a zero-based value scale on y. */
+/** bar, line and area share axes: categories on x, a value scale on y that always spans 0. */
 function seriesChart(chart: Rec, type: string): string {
   const axis = rec(chart.axis_config) ?? {};
   const series = arr(chart.series).map((s) => rec(s) ?? {});
   const categories = arr(axis.categories).map(str);
   const valueAt = (s: Rec, c: string) =>
     num(rec(arr(s.data).find((p) => rec(p)?.label === c))?.value);
-  const max = Math.max(1, ...series.flatMap((s) => categories.map((c) => valueAt(s, c))));
+  // Slack permits negative values, so the scale runs min..max and both include 0.
+  const values = series.flatMap((s) => categories.map((c) => valueAt(s, c)));
+  const min = Math.min(0, ...values);
+  const max = Math.max(min < 0 ? 0 : 1, ...values);
   const [W, H, L, T, B] = [480, 220, 44, 10, 30];
   const plotW = W - L - 10;
   const plotH = H - T - B;
-  const y = (v: number) => T + plotH - (v / max) * plotH;
+  const y = (v: number) => T + plotH - ((v - min) / (max - min)) * plotH;
+  const zero = y(0);
   const step = plotW / Math.max(1, categories.length);
   const parts: string[] = [];
   for (let k = 0; k <= 4; k++) {
-    const v = (max * k) / 4;
+    const v = min + ((max - min) * k) / 4;
     parts.push(
       `<line x1="${L}" x2="${W - 10}" y1="${y(v)}" y2="${y(v)}" stroke="#e8e8e8"/>`,
       svgText(L - 6, y(v) + 4, String(Math.round(v * 100) / 100), 'text-anchor="end"'),
@@ -372,7 +396,7 @@ function seriesChart(chart: Rec, type: string): string {
       categories.forEach((c, i) => {
         const v = valueAt(s, c);
         parts.push(
-          `<rect x="${L + step * i + step * 0.15 + bw * si}" y="${y(v)}" width="${bw}" height="${T + plotH - y(v)}" fill="${color(si)}"/>`,
+          `<rect x="${L + step * i + step * 0.15 + bw * si}" y="${Math.min(zero, y(v))}" width="${bw}" height="${Math.abs(zero - y(v))}" fill="${color(si)}"/>`,
         );
       });
       return;
@@ -380,7 +404,7 @@ function seriesChart(chart: Rec, type: string): string {
     const pts = categories.map((c, i) => `${L + step * (i + 0.5)},${y(valueAt(s, c))}`);
     if (type === "area" && pts.length)
       parts.push(
-        `<polygon points="${L + step * 0.5},${T + plotH} ${pts.join(" ")} ${L + step * (categories.length - 0.5)},${T + plotH}" fill="${color(si)}" fill-opacity=".25"/>`,
+        `<polygon points="${L + step * 0.5},${zero} ${pts.join(" ")} ${L + step * (categories.length - 0.5)},${zero}" fill="${color(si)}" fill-opacity=".25"/>`,
       );
     parts.push(
       `<polyline points="${pts.join(" ")}" fill="none" stroke="${color(si)}" stroke-width="2"/>`,
@@ -389,7 +413,7 @@ function seriesChart(chart: Rec, type: string): string {
   const xLabel = str(axis.x_label);
   const yLabel = str(axis.y_label);
   const labels = `${yLabel ? `<div class="sm-chart-axis">${plainTextToHtml(yLabel)} ↑</div>` : ""}`;
-  return `${labels}<svg class="sm-chart-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><line x1="${L}" x2="${W - 10}" y1="${T + plotH}" y2="${T + plotH}" stroke="#bbb"/>${parts.join("")}</svg>${xLabel ? `<div class="sm-chart-axis sm-chart-axis-x">${plainTextToHtml(xLabel)} →</div>` : ""}${legend(series.map((s) => str(s.name)))}`;
+  return `${labels}<svg class="sm-chart-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${parts.join("")}<line x1="${L}" x2="${W - 10}" y1="${zero}" y2="${zero}" stroke="#bbb"/></svg>${xLabel ? `<div class="sm-chart-axis sm-chart-axis-x">${plainTextToHtml(xLabel)} →</div>` : ""}${legend(series.map((s) => str(s.name)))}`;
 }
 
 function dataVisualizationBlock(block: Rec): string {

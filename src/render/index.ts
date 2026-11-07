@@ -226,7 +226,9 @@ a:hover{text-decoration:underline}
 .sm-bk-table .sm-ta-center{text-align:center}
 .sm-bk-table .sm-ta-right{text-align:right}
 .sm-bk-table .sm-td-wrap{white-space:normal}
-.sm-table-pager{font-size:12px;color:#616061;margin-top:4px}
+.sm-table-pager{display:flex;align-items:center;gap:6px;font-size:12px;color:#616061;margin-top:4px}
+.sm-pager-btn{border:1px solid #ddd;border-radius:4px;background:#fff;color:#1d1c1d;font-size:14px;line-height:16px;padding:0 6px;cursor:pointer}
+.sm-pager-btn:disabled{color:#bbb;cursor:default}
 .sm-chart{border:1px solid #ddd;border-radius:6px;padding:10px 12px;max-width:520px}
 .sm-chart-title{font-size:14px;font-weight:700;margin-bottom:6px}
 .sm-chart-svg{display:block;max-width:100%;height:auto;font-size:11px;fill:#616061}
@@ -895,6 +897,7 @@ function fitViewport(){if(viewport&&viewport.scale!==1)return;var style=document
 fitViewport();addEventListener("resize",fitViewport);
 if(viewport){viewport.addEventListener("resize",fitViewport);viewport.addEventListener("scroll",fitViewport)}
 document.addEventListener("change",function(e){if(e.target.classList.contains("sm-channel-switch"))location.href=e.target.value});
+document.addEventListener("click",function(e){var b=e.target.closest(".sm-pager-btn");if(!b)return;var block=b.closest(".sm-table-block"),pages=block.querySelectorAll("tbody"),cur=0;pages.forEach(function(t,i){if(!t.hidden)cur=i});var next=Math.min(Math.max(cur+Number(b.dataset.step),0),pages.length-1);pages.forEach(function(t,i){t.hidden=i!==next});block.querySelector(".sm-pager-label").textContent=pages[next].dataset.range;var btns=block.querySelectorAll(".sm-pager-btn");btns[0].disabled=next===0;btns[1].disabled=next===pages.length-1});
 var W="sm-panel-w",DEF=${JSON.stringify(panelWidth(opts))},FIXED=${opts.panelWidth ? "true" : "false"};
 ${autoScroll ? 'function scroll(){document.querySelectorAll(".sm-scroll").forEach(function(el){el.scrollTop=el.scrollHeight})}\nscroll();addEventListener("load",scroll);' : ""}
 var handle=document.querySelector(".sm-resize");
