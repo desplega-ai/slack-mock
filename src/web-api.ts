@@ -1,6 +1,7 @@
 // Slack Web API method handlers. Each receives the parsed args and returns the
 // `ok: true` body; they throw SlackApiError for `ok: false` responses.
 
+import { validateBlocks } from "./block-limits.ts";
 import { type Args, bool, num, str } from "./body.ts";
 import { nextTs, nowUnix, slackId } from "./ids.ts";
 import type { SocketModeHub } from "./socket-mode.ts";
@@ -86,10 +87,7 @@ function messageContent(
   const blocks = Array.isArray(args.blocks) ? (args.blocks as unknown[]) : undefined;
   const attachments = Array.isArray(args.attachments) ? (args.attachments as unknown[]) : undefined;
   if (!text && !blocks?.length && !attachments?.length) throw new SlackApiError("no_text");
-  if (blocks && blocks.length > 50)
-    throw new SlackApiError("invalid_blocks", {
-      response_metadata: { messages: ["[ERROR] must have at most 50 blocks"] },
-    });
+  validateBlocks(blocks);
   const metadata =
     args.metadata && typeof args.metadata === "object"
       ? (args.metadata as SlackMessage["metadata"])
@@ -221,6 +219,7 @@ export const handlers: Record<string, Handler> = {
     }
     if (args.blocks !== undefined) {
       patch.blocks = Array.isArray(args.blocks) ? (args.blocks as unknown[]) : undefined;
+      validateBlocks(patch.blocks);
       // On a streamed message the new blocks replace the body rather than trail it.
       if (existing.streaming_state !== undefined) patch.stream_replaced = true;
     }

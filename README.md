@@ -170,7 +170,13 @@ Stitch the PNGs into a GIF with ffmpeg if you want motion; the mock only produce
   push), assistant.threads (status, title, prompts), agents.sessions.setStatus,
   pins, bots, team.
 - UI: Block Kit `markdown` blocks render as Markdown (headings, bold, italic,
-  strike, links, lists, code); unknown blocks show a gray `unsupported: <type>` box.
+  strike, links, lists, code); `table` and `data_table` render as tables
+  (`column_settings` alignment, `data_table` pages at `page_size`, default 5);
+  `data_visualization` renders pie, bar, line and area charts as SVG. Their
+  documented limits (rows, cells, caption, 2 charts per message, chart labels
+  matching `axis_config.categories`) reject with `invalid_blocks` on
+  `chat.postMessage` and `chat.update`. Unknown blocks show a gray
+  `unsupported: <type>` box.
   Errors come back as `{ ok: false, error }` with the real codes
   (`not_in_channel`, `already_reacted`, `message_not_found`, `name_taken`,
   `expired_trigger_id`, `message_not_in_streaming_state`, ...).
