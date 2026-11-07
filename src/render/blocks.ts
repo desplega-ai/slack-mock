@@ -269,6 +269,141 @@ function videoBlock(block: Rec, ctx: RenderContext): string {
   return `<div class="sm-block sm-video">${url ? `<a class="sm-video-link" href="${url}" target="_blank" rel="noopener">${inner}</a>` : inner}</div>`;
 }
 
+// ------------------------------------------------------- tables and charts
+
+function tableCell(v: unknown, ctx: RenderContext): string {
+  const cell = rec(v);
+  if (!cell) return "";
+  if (str(cell.type) === "rich_text")
+    return arr(cell.elements)
+      .map((e) => richSection(e, ctx))
+      .join("");
+  if (str(cell.type) === "action_cell")
+    return rec(cell.button) ? button(rec(cell.button) as Rec, ctx) : tableCell(cell.fallback, ctx);
+  return plainTextToHtml(str(cell.text) || (cell.value === undefined ? "" : String(cell.value)));
+}
+
+/** `table` and `data_table`. Only data_table documents the first row as a header row. */
+function tableBlock(block: Rec, ctx: RenderContext): string {
+  const settings = arr(block.column_settings).map(rec);
+  const rows = arr(block.rows).map(arr);
+  // data_table pages at 5 rows unless page_size says otherwise; table never pages.
+  const pageSize = block.type === "data_table" ? Number(block.page_size) || 5 : 0;
+  const head = block.type === "data_table" ? 1 : 0;
+  const body = pageSize > 0 ? rows.slice(head, pageSize + head) : rows.slice(head);
+  const row = (cells: unknown[], tag: "th" | "td") =>
+    `<tr>${cells
+      .map((c, i) => {
+        const align = str(settings[i]?.align);
+        const cls = [
+          align === "center" || align === "right" ? `sm-ta-${align}` : "",
+          settings[i]?.is_wrapped === true ? "sm-td-wrap" : "",
+        ].filter(Boolean);
+        return `<${tag}${cls.length ? ` class="${cls.join(" ")}"` : ""}>${tableCell(c, ctx)}</${tag}>`;
+      })
+      .join("")}</tr>`;
+  const caption = str(block.caption)
+    ? `<div class="sm-table-caption">${plainTextToHtml(str(block.caption))}</div>`
+    : "";
+  const pager =
+    body.length < rows.length - 1
+      ? `<div class="sm-table-pager">1–${body.length} of ${rows.length - 1}</div>`
+      : "";
+  return `<div class="sm-block sm-table-block">${caption}<div class="sm-table-wrap"><table class="sm-bk-table">${head && rows.length ? `<thead>${row(rows[0] ?? [], "th")}</thead>` : ""}<tbody>${body.map((r) => row(r, "td")).join("")}</tbody></table></div>${pager}</div>`;
+}
+
+const CHART_COLORS = ["#1264a3", "#2eb67d", "#ecb22e", "#e01e5a", "#36c5f0", "#7c3085"];
+const color = (i: number) => CHART_COLORS[i % CHART_COLORS.length];
+const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const svgText = (x: number, y: number, text: string, attrs = "") =>
+  `<text x="${x}" y="${y}" ${attrs}>${escapeHtml(text)}</text>`;
+
+function legend(labels: string[]): string {
+  return `<div class="sm-chart-legend">${labels
+    .map(
+      (l, i) =>
+        `<span class="sm-chart-key"><i style="background:${color(i)}"></i>${escapeHtml(l)}</span>`,
+    )
+    .join("")}</div>`;
+}
+
+function pieChart(chart: Rec): string {
+  const segments = arr(chart.segments).map(rec);
+  const total = segments.reduce((t, s) => t + Math.max(0, num(s?.value)), 0) || 1;
+  let angle = -Math.PI / 2;
+  const slices = segments.map((s, i) => {
+    const frac = Math.max(0, num(s?.value)) / total;
+    if (frac >= 0.9999) return `<circle cx="100" cy="100" r="90" fill="${color(i)}"/>`;
+    const a0 = angle;
+    angle += frac * 2 * Math.PI;
+    const p = (a: number) => `${100 + 90 * Math.cos(a)} ${100 + 90 * Math.sin(a)}`;
+    return `<path d="M100 100 L${p(a0)} A90 90 0 ${frac > 0.5 ? 1 : 0} 1 ${p(angle)} Z" fill="${color(i)}"/>`;
+  });
+  return `<svg class="sm-chart-svg" viewBox="0 0 200 200" width="200" height="200">${slices.join("")}</svg>${legend(segments.map((s) => `${str(s?.label)} (${num(s?.value)})`))}`;
+}
+
+/** bar, line and area share axes: categories on x, a zero-based value scale on y. */
+function seriesChart(chart: Rec, type: string): string {
+  const axis = rec(chart.axis_config) ?? {};
+  const series = arr(chart.series).map((s) => rec(s) ?? {});
+  const categories = arr(axis.categories).map(str);
+  const valueAt = (s: Rec, c: string) =>
+    num(rec(arr(s.data).find((p) => rec(p)?.label === c))?.value);
+  const max = Math.max(1, ...series.flatMap((s) => categories.map((c) => valueAt(s, c))));
+  const [W, H, L, T, B] = [480, 220, 44, 10, 30];
+  const plotW = W - L - 10;
+  const plotH = H - T - B;
+  const y = (v: number) => T + plotH - (v / max) * plotH;
+  const step = plotW / Math.max(1, categories.length);
+  const parts: string[] = [];
+  for (let k = 0; k <= 4; k++) {
+    const v = (max * k) / 4;
+    parts.push(
+      `<line x1="${L}" x2="${W - 10}" y1="${y(v)}" y2="${y(v)}" stroke="#e8e8e8"/>`,
+      svgText(L - 6, y(v) + 4, String(Math.round(v * 100) / 100), 'text-anchor="end"'),
+    );
+  }
+  categories.forEach((c, i) => {
+    parts.push(svgText(L + step * (i + 0.5), H - B + 16, c, 'text-anchor="middle"'));
+  });
+  series.forEach((s, si) => {
+    if (type === "bar") {
+      const bw = (step * 0.7) / Math.max(1, series.length);
+      categories.forEach((c, i) => {
+        const v = valueAt(s, c);
+        parts.push(
+          `<rect x="${L + step * i + step * 0.15 + bw * si}" y="${y(v)}" width="${bw}" height="${T + plotH - y(v)}" fill="${color(si)}"/>`,
+        );
+      });
+      return;
+    }
+    const pts = categories.map((c, i) => `${L + step * (i + 0.5)},${y(valueAt(s, c))}`);
+    if (type === "area" && pts.length)
+      parts.push(
+        `<polygon points="${L + step * 0.5},${T + plotH} ${pts.join(" ")} ${L + step * (categories.length - 0.5)},${T + plotH}" fill="${color(si)}" fill-opacity=".25"/>`,
+      );
+    parts.push(
+      `<polyline points="${pts.join(" ")}" fill="none" stroke="${color(si)}" stroke-width="2"/>`,
+    );
+  });
+  const xLabel = str(axis.x_label);
+  const yLabel = str(axis.y_label);
+  const labels = `${yLabel ? `<div class="sm-chart-axis">${plainTextToHtml(yLabel)} ↑</div>` : ""}`;
+  return `${labels}<svg class="sm-chart-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><line x1="${L}" x2="${W - 10}" y1="${T + plotH}" y2="${T + plotH}" stroke="#bbb"/>${parts.join("")}</svg>${xLabel ? `<div class="sm-chart-axis sm-chart-axis-x">${plainTextToHtml(xLabel)} →</div>` : ""}${legend(series.map((s) => str(s.name)))}`;
+}
+
+function dataVisualizationBlock(block: Rec): string {
+  const chart = rec(block.chart) ?? {};
+  const type = str(chart.type);
+  const body =
+    type === "pie"
+      ? pieChart(chart)
+      : type === "bar" || type === "line" || type === "area"
+        ? seriesChart(chart, type)
+        : unsupported(`chart ${type}`);
+  return `<div class="sm-block sm-chart" data-chart="${escapeHtml(type)}"><div class="sm-chart-title">${plainTextToHtml(str(block.title))}</div>${body}</div>`;
+}
+
 function renderBlock(v: unknown, ctx: RenderContext): string {
   const block = rec(v);
   if (!block) return unsupported("block");
@@ -299,6 +434,11 @@ function renderBlock(v: unknown, ctx: RenderContext): string {
       return videoBlock(block, ctx);
     case "markdown":
       return `<div class="sm-block sm-markdown">${markdownToHtml(str(block.text), ctx)}</div>`;
+    case "table":
+    case "data_table":
+      return tableBlock(block, ctx);
+    case "data_visualization":
+      return dataVisualizationBlock(block);
     default:
       return `<div class="sm-block">${unsupported(str(block.type))}</div>`;
   }
