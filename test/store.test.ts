@@ -88,6 +88,23 @@ test("replaying an array of changes gives the same state as replaying the file",
   expect(snapshot(fromArray)).toBe(snapshot(fromFile));
 });
 
+test("replay keeps an ephemeral out of channel history", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "slack-mock-")), "log.jsonl");
+  const mock = await SlackMock.start({ port: 0, dataFile: file });
+  const ask = await mock.postMessage({ channel: "general", user: "alice", text: "root" });
+  mock.store.addMessage({
+    channel: ask.channel,
+    user: mock.bot.userId,
+    ephemeral_user: "U0ALICE000",
+    text: "only alice sees this",
+  });
+  await mock.stop();
+
+  const replayed = new Store({ dataFile: file });
+  expect(replayed.messages.get(ask.channel)?.map((m) => m.text)).toEqual(["root"]);
+  expect(replayed.ephemerals.map((m) => m.text)).toEqual(["only alice sees this"]);
+});
+
 test("addUser stores profile.title when given and omits it otherwise", () => {
   const store = new Store();
   const withTitle = store.addUser({ id: "U1", name: "person", title: "Support Engineer" });

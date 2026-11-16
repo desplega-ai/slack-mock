@@ -208,7 +208,9 @@ export class Store {
         break;
       }
       case "message.add":
-        this.insertMessage(change.message);
+        // Same split as addMessage: an ephemeral never joins channel history.
+        if (change.message.ephemeral_user) this.ephemerals.push(change.message);
+        else this.insertMessage(change.message);
         break;
       case "message.update":
       case "reaction.add":
