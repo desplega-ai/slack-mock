@@ -194,6 +194,9 @@ a:hover{text-decoration:underline}
 .sm-context-img{width:16px;height:16px;border-radius:2px;object-fit:cover}
 .sm-hr{border:0;border-top:1px solid #ddd;margin:10px 0}
 .sm-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sm-context-actions{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.sm-feedback{display:inline-flex;gap:4px}
+.sm-icon-btn{padding:4px 8px;font-weight:400;border-color:#ddd}
 .sm-btn{display:inline-block;border:1px solid #bbb;border-radius:4px;padding:6px 12px;font-size:14px;font-weight:700;color:#1d1c1d;background:#fff;line-height:16px}
 .sm-btn:hover{text-decoration:none;background:#f8f8f8;color:#1d1c1d}
 .sm-btn-primary{background:#007a5a;border-color:#007a5a;color:#fff}

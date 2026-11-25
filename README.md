@@ -175,7 +175,10 @@ Stitch the PNGs into a GIF with ffmpeg if you want motion; the mock only produce
   `data_visualization` renders pie, bar, line and area charts as SVG. Their
   documented limits (rows, cells, caption, 2 charts per message, chart labels
   matching `axis_config.categories`) reject with `invalid_blocks` on
-  `chat.postMessage` and `chat.update`. Unknown blocks show a gray
+  `chat.postMessage` and `chat.update`. `context_actions` renders
+  `feedback_buttons` as 👍/👎 and `icon_button`; `clickButton` on a
+  `feedback_buttons` action sends the side whose `value` you pass (👍 by
+  default). Unknown blocks show a gray
   `unsupported: <type>` box.
   Errors come back as `{ ok: false, error }` with the real codes
   (`not_in_channel`, `already_reacted`, `message_not_found`, `name_taken`,

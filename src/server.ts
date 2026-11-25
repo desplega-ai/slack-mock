@@ -1014,7 +1014,7 @@ export class SlackMock {
       this.store.findMessage(channel.id, input.ts) ??
       this.store.ephemerals.find((m) => m.channel === channel.id && m.ts === input.ts);
     if (!message) throw new SlackApiError("message_not_found");
-    const found = findButton(message.blocks, input.action_id);
+    const found = findButton(message.blocks, input.action_id, input.value);
     if (!found && !input.value && !input.block_id)
       throw new Error(`no button with action_id ${input.action_id} on message ${input.ts}`);
     const responseUrl = this.issueResponseUrl({
@@ -1030,7 +1030,7 @@ export class SlackMock {
       triggerId: this.issueTriggerId(),
       actions: [
         {
-          type: "button",
+          type: found?.type ?? "button",
           action_id: input.action_id,
           block_id: input.block_id ?? found?.block_id ?? slackId("", 5),
           text: found?.text ?? {
@@ -1373,7 +1373,10 @@ function slackError(code: string, extra: Record<string, unknown> = {}): Response
 function findButton(
   blocks: unknown[] | undefined,
   actionId: string,
-): { block_id?: string; text?: unknown; value?: string; style?: string } | undefined {
+  value?: string,
+):
+  | { type?: string; block_id?: string; text?: unknown; value?: string; style?: string }
+  | undefined {
   for (const b of (blocks ?? []) as Array<Record<string, unknown>>) {
     const elements = [
       ...(Array.isArray(b.elements) ? (b.elements as Array<Record<string, unknown>>) : []),
@@ -1386,6 +1389,17 @@ function findButton(
           text: el.text,
           value: el.value as string | undefined,
           style: el.style as string | undefined,
+        };
+      }
+      // context_actions feedback_buttons: the click names the button by its value (👍 by default).
+      if (el.type === "feedback_buttons" && el.action_id === actionId) {
+        const sides = [el.positive_button, el.negative_button] as Array<Record<string, unknown>>;
+        const side = sides.find((s) => s?.value === value) ?? sides[0];
+        return {
+          type: "feedback_buttons",
+          block_id: b.block_id as string | undefined,
+          text: side?.text,
+          value: side?.value as string | undefined,
         };
       }
     }

@@ -244,6 +244,30 @@ function contextBlock(block: Rec, ctx: RenderContext): string {
   return `<div class="sm-block sm-context">${inner}</div>`;
 }
 
+/** One 👍 or 👎 of a `feedback_buttons` element; Slack shows the icon, and the label on hover. */
+function feedbackButton(v: unknown, glyph: string): string {
+  const b = rec(v) ?? {};
+  const label = escapeHtml(str(rec(b.text)?.text));
+  const aria = escapeHtml(str(b.accessibility_label)) || label;
+  return `<span class="sm-btn sm-icon-btn" title="${label}" aria-label="${aria}">${glyph}</span>`;
+}
+
+/** `context_actions`: a row of `feedback_buttons` and `icon_button` under a message. */
+function contextActionsBlock(block: Rec, ctx: RenderContext): string {
+  const inner = arr(block.elements)
+    .map((e) => {
+      const el = rec(e);
+      if (!el) return "";
+      if (str(el.type) === "feedback_buttons")
+        return `<span class="sm-feedback">${feedbackButton(el.positive_button, "👍")}${feedbackButton(el.negative_button, "👎")}</span>`;
+      if (str(el.type) === "icon_button")
+        return `<span class="sm-btn sm-icon-btn">${str(el.icon) === "trash" ? "🗑" : ""} ${textObject(el.text, ctx)}</span>`;
+      return unsupported(str(el.type));
+    })
+    .join("");
+  return `<div class="sm-block sm-context-actions">${inner}</div>`;
+}
+
 function imageBlock(block: Rec, ctx: RenderContext): string {
   const title = block.title
     ? `<div class="sm-img-title">${textObject(block.title, ctx)}</div>`
@@ -440,6 +464,8 @@ function renderBlock(v: unknown, ctx: RenderContext): string {
       return `<div class="sm-block"><hr class="sm-hr"></div>`;
     case "context":
       return contextBlock(block, ctx);
+    case "context_actions":
+      return contextActionsBlock(block, ctx);
     case "actions":
       return `<div class="sm-block sm-actions">${arr(block.elements)
         .map((e) => renderElement(e, ctx))
