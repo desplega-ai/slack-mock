@@ -51,7 +51,7 @@ toolbar, reactions, a thread pane and Slack's composer. It ships Lato (latin sub
 
 | Light (default) | Dark |
 | --- | --- |
-| ![Light theme](docs/ui-light.png) | ![Dark theme](docs/ui-dark.png) |
+| ![Light theme](https://github.com/user-attachments/assets/1dcf4910-aa7d-4f0e-86ac-33aede8e1a3b) | ![Dark theme](https://github.com/user-attachments/assets/917cc4b0-e690-401e-97e3-8fb9ad1fba6a) |
 
 Themes: light is the default, dark is optional. The sidebar uses the Hive themes of Agent Swarm,
 mapped like a Slack custom theme string (column bg, menu bg hover, active item, active item text,
