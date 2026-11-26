@@ -44,17 +44,49 @@ bun src/cli.ts screenshot http://127.0.0.1:4040/c/general --out general.png
 
 ## UI
 
-Use the avatar and name chip to choose who posts from every composer.
+The web UI is laid out like the Slack desktop client: title bar with search, tab rail, sidebar
+(channels, direct messages, apps), channel header with tabs, grouped messages with a hover
+toolbar, reactions, a thread pane and Slack's composer. It ships Lato (latin subset, SIL OFL, see
+`src/render/LATO-OFL.txt`), so pages and screenshots look the same on a machine without the font.
+
+| Light (default) | Dark |
+| --- | --- |
+| ![Light theme](docs/ui-light.png) | ![Dark theme](docs/ui-dark.png) |
+
+Themes: light is the default, dark is optional. The sidebar uses the Hive themes of Agent Swarm,
+mapped like a Slack custom theme string (column bg, menu bg hover, active item, active item text,
+hover item, text colour, active presence, mention badge). The message pane uses Slack's stock
+light and dark palettes, since Slack never themes it.
+
+| Where | How |
+| --- | --- |
+| One page | `?theme=dark` (links on the page keep it), or the sun/moon button in the title bar |
+| Server | `SlackMock.start({ theme: "dark" })` or `slack-mock serve --theme dark` |
+| Environment | `SLACK_MOCK_THEME=dark` (also read by `frames` and `renderPage`) |
+| Frames | `frames({ theme: "dark" })` or `slack-mock frames --theme dark` |
+
+Chips: a mention of a user or app shows a small avatar and the name, and a channel mention links
+to the channel. Links to known things render as chips with an icon and a short label:
+a GitHub PR, issue, commit or repo (`agent-swarm#3432`), a Linear issue (`ENG-42`), and Agent
+Swarm tasks, apps, pages, sessions, workflows and drive files on `*.agent-swarm.dev`,
+`*.agent-fs.dev` or localhost. The mock never calls GitHub, so a PR or issue chip shows a state
+only when you give one: `mock.store.linkStates.set(url, "merged")` (`open`, `draft`, `merged`,
+`closed`).
+
+Avatars: `addUser({ image })` sets a profile picture and `appIcon` sets the app's (an http(s),
+root-relative or `data:image` URL). Without one the UI shows initials on a stable colour.
+
+The picture at the bottom of the tab rail is who posts from every composer. Select it to switch.
 The browser remembers your choice across channels and threads.
 Open `/c/support?as=taras` to select Taras. The page removes `as` from the URL after selection.
-Public workspaces show the chip after presenter sign-in.
-Optional user status text appears beside names in the users table and the chip's user list.
+Public workspaces show the picker after presenter sign-in.
+Optional user status text appears beside names in the users table and the picker's user list.
 Each message offers reaction and thread icons, including messages without replies.
 The thread icon opens the thread without focusing the composer.
 Icons stay visible on phones and touch screens. Desktop shows them on hover or keyboard focus.
 Choose an emoji from the picker beside the message, or select an existing reaction to add or remove your own.
-Reactions use the identity in the chip and require presenter sign-in in public workspaces.
-Below 700px, the sidebar becomes a top bar with a channel switcher.
+Reactions use the selected identity and require presenter sign-in in public workspaces.
+Below 700px, the sidebar becomes a top bar with the identity picker and a channel switcher.
 Threads fill the phone width. The composer follows the visible viewport and includes padding for the iOS home bar.
 Capture the phone layout with `bun test test/phone-ui.test.ts` (requires Chrome).
 The PNG is saved to `test/artifacts/phone-support-thread.png` at 390 x 844.

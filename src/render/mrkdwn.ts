@@ -7,11 +7,14 @@
 // `&amp;` a single `&amp;` in the output instead of `&amp;amp;`.
 
 import type { SlackChannel, SlackUser } from "../types.ts";
+import { channelChip, linkChip, userChip } from "./chips.ts";
 
 export interface RenderContext {
   users: Map<string, SlackUser>;
   channels: Map<string, SlackChannel>;
   botUserId: string;
+  /** State hints for GitHub PR and issue chips, by URL: "open", "draft", "merged" or "closed". */
+  linkStates?: Map<string, string>;
 }
 
 export function escapeHtml(s: string): string {
@@ -182,13 +185,11 @@ function renderControl(inner: string, ctx: RenderContext): string {
 
   if (head.startsWith("@")) {
     const id = head.slice(1);
-    const user = ctx.users.get(id);
-    return pill(`@${user ? displayName(user) : label || id}`);
+    return userChip(ctx.users.get(id), label || id);
   }
   if (head.startsWith("#")) {
     const id = head.slice(1);
-    const channel = ctx.channels.get(id);
-    return pill(`#${channel ? channel.name : label.replace(/^#/, "") || id}`);
+    return channelChip(ctx.channels.get(id), label.replace(/^#/, "") || id);
   }
   if (head.startsWith("!")) {
     const cmd = head.slice(1);
@@ -205,6 +206,8 @@ function renderControl(inner: string, ctx: RenderContext): string {
     return pill(`@${cmd}`);
   }
   if (isSafeUrl(head)) {
+    const chip = linkChip(unescapeSlack(head), label && renderEmoji(reEscape(label)), ctx);
+    if (chip) return chip;
     const shown = label || head.replace(/^mailto:/i, "");
     const attrs = /^mailto:/i.test(head) ? "" : ' target="_blank" rel="noopener"';
     return `<a class="sm-link" href="${escapeHtml(head)}"${attrs}>${renderEmoji(reEscape(shown))}</a>`;

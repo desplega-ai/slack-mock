@@ -1,10 +1,13 @@
-// Server-rendered, Slack-looking HTML for the mock workspace. No client-side
-// JavaScript and no external assets, so a page can be screenshotted by headless
-// Chrome or opened directly in a browser while debugging a test.
+// Server-rendered HTML for the mock workspace, laid out like the Slack desktop client. Screenshot
+// pages carry no client-side JavaScript and no external assets (the font is inlined), so a page
+// can be screenshotted by headless Chrome or opened from a file while debugging a test.
 
 import type { Store } from "../store.ts";
 import type { SlackChannel, SlackFile, SlackMessage, SlackUser } from "../types.ts";
 import { renderAttachments, renderBlocks } from "./blocks.ts";
+import { avatarColor, initials, userAvatar, userImage } from "./chips.ts";
+import { fontPreloads, stylesheet, THEMES, type ThemeName } from "./css.ts";
+import { icon } from "./icons.ts";
 import {
   displayName,
   emojiChar,
@@ -37,350 +40,35 @@ export interface RenderOptions {
   live?: boolean;
   /** Reading is open but posting needs a credential: the composer shows a presenter sign-in. */
   writeGated?: boolean;
+  /** "light" or "dark" for this page. Links on the page carry it, so it survives navigation. */
+  theme?: string;
+  /** The theme when `theme` is unset. Falls back to `SLACK_MOCK_THEME`, then "light". */
+  defaultTheme?: string;
+  /** URL prefix the Lato font files load from. Unset: the font is inlined in the page. */
+  fontBase?: string;
 }
 
 const DEFAULT_PANEL_WIDTH = "50%";
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-const AVATAR_COLORS = [
-  "#4a154b",
-  "#1264a3",
-  "#2eb67d",
-  "#e01e5a",
-  "#e8912d",
-  "#007a5a",
-  "#7c3aed",
-  "#00a2ac",
-  "#df10a5",
-  "#3d5afe",
-];
-
-const CSS = `
-*{box-sizing:border-box}
-html,body{margin:0;padding:0;height:100%}
-body{font-family:Lato,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.46668;color:#1d1c1d;background:#fff;-webkit-font-smoothing:antialiased}
-a{color:#1264a3;text-decoration:none}
-a:hover{text-decoration:underline}
-.sm-app{display:flex;height:100vh;overflow:hidden}
-.sm-side{width:230px;flex:none;background:#3f0e40;color:#d9d0d9;padding:16px 0;overflow-y:auto}
-.sm-side-title{color:#fff;font-weight:900;font-size:17px;padding:0 16px 12px;border-bottom:1px solid #522653;margin-bottom:10px}
-.sm-side-team{display:block;font-weight:400;font-size:12px;color:#bda9bd}
-.sm-side-h{font-size:13px;color:#bda9bd;padding:10px 16px 4px}
-.sm-side a{display:block;color:#d9d0d9;padding:3px 16px;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sm-side a:hover{background:#522653;color:#fff;text-decoration:none}
-.sm-side a.sm-active,.sm-side a.sm-active:hover{background:#1164a3;color:#fff}
-.sm-side-title a:hover{background:none;text-decoration:underline}
-.sm-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
-.sm-shot{width:760px;padding:16px;background:#fff}
-.sm-top{border-bottom:1px solid #e8e8e8;padding:12px 20px;display:flex;align-items:baseline;gap:12px;flex:none}
-.sm-top h1{font-size:18px;font-weight:900;margin:0}
-.sm-top .sm-sub{font-size:13px;color:#616061;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sm-back{font-size:13px;font-weight:700;color:#616061;flex:none}
-.sm-back:hover{color:#1264a3}
-.sm-page{padding:12px 20px 32px}
-.sm-main .sm-page{flex:1;overflow-y:auto}
-.sm-shot .sm-page{padding:0}
-.sm-shot .sm-top{padding:0 0 10px;margin-bottom:8px}
-
-.sm-panel{width:var(--sm-panel-w,50%);min-width:360px;flex:0 1 auto;display:flex;flex-direction:column;border-left:1px solid #e8e8e8;background:#fff;overflow:hidden}
-.sm-panel-top{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid #e8e8e8;flex:none}
-.sm-panel-heading{flex:1;min-width:0}
-.sm-panel-title{font-size:18px;font-weight:900;margin:0;line-height:22px}
-.sm-panel-sub{font-size:13px;color:#616061}
-.sm-panel-close,.sm-panel-expand{font-size:16px;line-height:22px;color:#616061;padding:0 6px;border-radius:4px;flex:none}
-.sm-panel-close{font-size:20px}
-.sm-panel-close:hover,.sm-panel-expand:hover{background:#f0f0f0;color:#1d1c1d;text-decoration:none}
-.sm-panel-back{display:none;padding:8px 16px;font-size:13px;font-weight:700;border-bottom:1px solid #e8e8e8;flex:none}
-.sm-panel-body{flex:1;overflow-y:auto;padding:12px 16px 32px}
-.sm-resize{width:6px;flex:none;cursor:col-resize;background:#f2f2f2;border-left:1px solid #e8e8e8}
-.sm-resize:hover,.sm-resize.sm-dragging{background:#1264a3;border-left-color:#1264a3}
-.sm-icon-btn{display:inline-block;font-size:16px;line-height:22px;color:#616061;padding:0 6px;border-radius:4px;cursor:pointer}
-.sm-icon-btn:hover{background:#f0f0f0;color:#1d1c1d;text-decoration:none}
-.sm-composer{position:relative;flex:none;border-top:1px solid #e8e8e8;padding:10px 20px 12px;background:#fff}
-.sm-panel .sm-composer{padding:10px 16px 12px}
-.sm-composer-box{border:1px solid #bbb;border-radius:8px;padding:8px 10px;background:#fff}
-.sm-composer-box:focus-within{border-color:#1264a3;box-shadow:0 0 0 1px #1264a3}
-.sm-composer-row{display:flex;align-items:center;gap:8px;margin-top:6px}
-.sm-composer-text{display:block;width:100%;border:0;outline:none;resize:vertical;font-family:inherit;font-size:15px;line-height:20px;color:#1d1c1d;padding:0;background:none}
-.sm-composer-send{flex:none;margin-left:auto;border:0;border-radius:4px;background:#007a5a;color:#fff;font-family:inherit;font-weight:700;font-size:13px;padding:6px 14px;cursor:pointer}
-.sm-composer-send:hover{background:#148567;color:#fff}
-.sm-composer-hint{font-size:11px;color:#616061;margin-top:4px}
-.sm-mentions{display:none;position:absolute;left:20px;right:20px;bottom:100%;margin-bottom:6px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.16);z-index:5}
-.sm-panel .sm-mentions{left:16px;right:16px}
-.sm-mention{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:14px;cursor:pointer;color:#1d1c1d}
-.sm-mention-on{background:#1264a3;color:#fff}
-.sm-mention-on .sm-mention-real{color:#dbe9f5}
-.sm-mention-av{width:20px;height:20px;border-radius:3px;flex:none;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
-.sm-mention-name{font-weight:700}
-.sm-mention-real{color:#616061;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-.sm-side a,.sm-btn,.sm-select,.sm-reaction,.sm-file-card,.sm-prompt,.sm-replies,.sm-back,.sm-panel-close,.sm-panel-expand,.sm-composer-send,.sm-top-actions a{cursor:pointer}
-.sm-composer-text{cursor:text}
-.sm-badge,.sm-time,.sm-daydiv,.sm-pill,.sm-emoji-name,.sm-avatar,.sm-name,.sm-composer-hint,.sm-unsupported,.sm-tag,.sm-card{cursor:default}
-.sm-top-actions{margin-left:auto;display:flex;gap:12px;align-items:center;flex:none}
-.sm-top-actions a{font-size:13px;font-weight:700;color:#616061}
-.sm-top-actions a:hover{color:#1264a3}
-.sm-identity{position:relative}
-.sm-identity[hidden]{display:none}
-.sm-identity summary{display:flex;align-items:center;gap:6px;list-style:none;border:1px solid #ddd;border-radius:16px;padding:2px 8px 2px 3px;font-size:13px;font-weight:700;cursor:pointer}
-.sm-identity summary::-webkit-details-marker{display:none}
-.sm-identity summary:hover{background:#f8f8f8}
-.sm-identity-avatar{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;flex:none}
-.sm-identity-list{position:absolute;right:0;top:100%;z-index:10;width:max-content;min-width:190px;max-width:280px;margin:6px 0 0;padding:4px;list-style:none;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.16)}
-.sm-identity-list button{display:flex;align-items:center;gap:8px;width:100%;border:0;border-radius:4px;padding:6px;background:#fff;color:#1d1c1d;font:inherit;text-align:left;cursor:pointer}
-.sm-identity-list button:hover,.sm-identity-list button:focus{background:#f0f0f0;outline:none}
-.sm-identity-user{font-size:12px;color:#616061;margin-left:auto}
-.sm-user-status{margin-left:6px;font-size:12px;font-weight:400;color:#616061}
-.sm-mobile-bar{display:none}
-
-.sm-daydiv{display:flex;align-items:center;gap:10px;margin:14px 0 8px}
-.sm-daydiv:before,.sm-daydiv:after{content:"";flex:1;height:1px;background:#e8e8e8}
-.sm-daydiv span{border:1px solid #e8e8e8;border-radius:12px;padding:2px 12px;font-size:13px;font-weight:700;color:#454245;background:#fff}
-
-.sm-msg{position:relative;display:flex;gap:12px;padding:8px 8px;border-radius:6px}
-.sm-msg:hover{background:#f8f8f8}
-.sm-msg-eph{background:#fffbe6}
-.sm-msg-eph:hover{background:#fff7d1}
-.sm-msg-open,.sm-msg-open:hover{background:#fff8e2;box-shadow:inset 3px 0 0 #ecb22e}
-.sm-avatar{width:36px;height:36px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;overflow:hidden}
-.sm-avatar img{width:36px;height:36px;object-fit:cover}
-.sm-avatar-emoji{font-size:20px;background:#f0f0f0}
-.sm-msg-body{min-width:0;flex:1}
-.sm-msg-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:1px}
-.sm-name{font-weight:700;font-size:15px;color:#1d1c1d}
-.sm-badge{background:#e8e8e8;color:#616061;font-size:10px;font-weight:700;border-radius:2px;padding:1px 4px;letter-spacing:.4px;text-transform:uppercase}
-.sm-time{font-size:12px;color:#616061}
-.sm-text{font-size:15px;line-height:22px;word-wrap:break-word;overflow-wrap:anywhere}
-.sm-edited{font-size:12px;color:#616061}
-.sm-eph-note{font-size:12px;color:#8a6d1a;margin-top:4px}
-.sm-stream{display:inline-block;margin-left:4px;color:#616061;font-weight:700;animation:sm-pulse 1s ease-in-out infinite}
-@keyframes sm-pulse{0%,100%{opacity:.25}50%{opacity:1}}
-@keyframes sm-flash{0%{background:#fff3bf}100%{background:transparent}}
-@keyframes sm-flash-soft{0%{background:#eaf3ff}100%{background:transparent}}
-.sm-msg-new{animation:sm-flash 2.4s ease-out}
-.sm-msg-changed{animation:sm-flash-soft .9s ease-out}
-@media (prefers-reduced-motion:reduce){.sm-msg-new,.sm-msg-changed{animation:none}}
-.sm-live{font-size:11px;font-weight:600;color:#2eb67d;margin-left:10px;vertical-align:middle;white-space:nowrap}
-.sm-live-off{color:#e8912d}
-.sm-composer-lock{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 2px;font-size:13px;color:#616061}
-.sm-composer-lock[hidden]{display:none}
-.sm-composer-lock input{font:inherit;font-size:13px;padding:5px 8px;border:1px solid #bbb;border-radius:4px;width:130px}
-.sm-composer-lock .sm-lock-go{font:inherit;font-size:13px;padding:5px 10px;border:1px solid #1264a3;border-radius:4px;background:#1264a3;color:#fff;cursor:pointer}
-.sm-composer-lock .sm-err{color:#e01e5a}
-.sm-composer-text:disabled{background:#f8f8f8;color:#888}
-
-.sm-pill{background:#e8f5fa;color:#1264a3;border-radius:3px;padding:0 2px}
-.sm-link{color:#1264a3}
-.sm-emoji-name{color:#616061}
-.sm-code{font-family:Monaco,Menlo,Consolas,"Courier New",monospace;font-size:12px;background:#f8f8f8;border:1px solid #ddd;border-radius:3px;padding:1px 3px;color:#e01e5a}
-.sm-pre{font-family:Monaco,Menlo,Consolas,"Courier New",monospace;font-size:12px;line-height:18px;background:#f8f8f8;border:1px solid #ddd;border-radius:4px;padding:8px;margin:4px 0;white-space:pre-wrap;word-break:break-word;color:#1d1c1d}
-.sm-quote{border-left:4px solid #ddd;margin:4px 0;padding:0 0 0 12px;color:#1d1c1d}
-.sm-list{margin:2px 0;padding-left:22px}
-.sm-list li{margin:1px 0}
-
-.sm-blocks{margin:2px 0}
-.sm-block{margin:6px 0}
-.sm-header-block{font-size:18px;font-weight:900;line-height:24px}
-.sm-section-split{display:flex;gap:12px;align-items:flex-start}
-.sm-section-main{flex:1;min-width:0}
-.sm-section-acc{flex:none}
-.sm-fields{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:6px}
-.sm-field{flex:1 1 40%;min-width:0;font-size:14px;line-height:20px}
-.sm-field-wide{flex-basis:100%}
-.sm-field-title{font-weight:700}
-.sm-context{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;line-height:18px;color:#616061}
-.sm-context .sm-pre,.sm-context .sm-code{font-size:11px}
-.sm-context-img{width:16px;height:16px;border-radius:2px;object-fit:cover}
-.sm-hr{border:0;border-top:1px solid #ddd;margin:10px 0}
-.sm-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.sm-context-actions{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
-.sm-feedback{display:inline-flex;gap:4px}
-.sm-icon-btn{padding:4px 8px;font-weight:400;border-color:#ddd}
-.sm-btn{display:inline-block;border:1px solid #bbb;border-radius:4px;padding:6px 12px;font-size:14px;font-weight:700;color:#1d1c1d;background:#fff;line-height:16px}
-.sm-btn:hover{text-decoration:none;background:#f8f8f8;color:#1d1c1d}
-.sm-btn-primary{background:#007a5a;border-color:#007a5a;color:#fff}
-.sm-btn-primary:hover{background:#148567;border-color:#148567;color:#fff}
-.sm-btn-danger{background:#e01e5a;border-color:#e01e5a;color:#fff}
-.sm-btn-danger:hover{background:#c31f4c;border-color:#c31f4c;color:#fff}
-.sm-btn-confirm{margin-left:6px;opacity:.7;font-weight:400}
-.sm-select{display:inline-flex;align-items:center;gap:6px;border:1px solid #bbb;border-radius:4px;padding:6px 10px;font-size:14px;color:#1d1c1d;background:#fff;line-height:16px}
-.sm-select-caret{color:#616061;font-size:12px}
-.sm-options{display:flex;flex-direction:column;gap:4px;font-size:14px}
-.sm-acc-img{max-width:88px;max-height:88px;border-radius:4px;display:block}
-.sm-img{max-width:100%;border-radius:6px;display:block;margin-top:4px}
-.sm-img-title{font-size:13px;font-weight:700;color:#454245}
-.sm-label{font-weight:700;font-size:14px;margin-bottom:4px}
-.sm-hint{font-size:12px;color:#616061;margin-top:4px}
-.sm-input{border:1px solid #bbb;border-radius:4px;padding:8px 10px;font-size:14px;min-height:36px;background:#fff}
-.sm-input-multi{min-height:76px}
-.sm-input-ph{color:#8d8d8e}
-.sm-file-block{font-size:14px;color:#454245}
-.sm-video-thumb{max-width:320px;border-radius:6px;display:block}
-.sm-video-title{font-size:14px;font-weight:700;margin-top:4px}
-.sm-unsupported{display:inline-block;background:#f4f4f4;border:1px solid #ddd;border-radius:4px;padding:4px 8px;font-size:12px;color:#616061;font-family:Monaco,Menlo,monospace}
-.sm-rt-section{margin:2px 0}
-.sm-table-caption{font-size:13px;font-weight:700;color:#454245;margin-bottom:4px}
-.sm-table-wrap{width:fit-content;overflow-x:auto;border:1px solid #ddd;border-radius:6px;max-width:100%}
-.sm-bk-table{border-collapse:collapse;font-size:14px;line-height:20px}
-.sm-bk-table th,.sm-bk-table td{padding:6px 12px;text-align:left;border-bottom:1px solid #e8e8e8;white-space:nowrap;vertical-align:top}
-.sm-bk-table th{font-weight:700;background:#f8f8f8}
-.sm-bk-table tr:last-child td{border-bottom:0}
-.sm-bk-table .sm-ta-center{text-align:center}
-.sm-bk-table .sm-ta-right{text-align:right}
-.sm-bk-table .sm-td-wrap{white-space:normal}
-.sm-table-pager{display:flex;align-items:center;gap:6px;font-size:12px;color:#616061;margin-top:4px}
-.sm-pager-btn{border:1px solid #ddd;border-radius:4px;background:#fff;color:#1d1c1d;font-size:14px;line-height:16px;padding:0 6px;cursor:pointer}
-.sm-pager-btn:disabled{color:#bbb;cursor:default}
-.sm-chart{border:1px solid #ddd;border-radius:6px;padding:10px 12px;max-width:520px}
-.sm-chart-title{font-size:14px;font-weight:700;margin-bottom:6px}
-.sm-chart-svg{display:block;max-width:100%;height:auto;font-size:11px;fill:#616061}
-.sm-chart-axis{font-size:11px;color:#616061}
-.sm-chart-axis-x{text-align:center}
-.sm-chart-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:#454245;margin-top:6px}
-.sm-chart-key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-
-.sm-atts{margin-top:4px}
-.sm-att{border-left:4px solid #ddd;border-radius:2px;padding:2px 0 2px 12px;margin:6px 0;max-width:600px}
-.sm-att-pretext{font-size:15px;line-height:22px;margin-top:4px}
-.sm-att-author{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#454245}
-.sm-att-author-icon{width:16px;height:16px;border-radius:2px}
-.sm-att-title{font-size:15px;font-weight:700;margin:2px 0}
-.sm-att-text{font-size:15px;line-height:21px}
-.sm-att-img{max-width:360px;border-radius:6px;display:block;margin-top:6px}
-.sm-att-thumb{max-width:80px;border-radius:4px;display:block;margin-top:6px}
-.sm-att-footer{display:flex;align-items:center;gap:6px;font-size:12px;color:#616061;margin-top:6px}
-.sm-att-footer-icon{width:14px;height:14px;border-radius:2px}
-
-.sm-files{margin-top:6px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-.sm-file-img{max-width:480px;max-height:420px;border-radius:8px;border:1px solid #e8e8e8;display:block}
-.sm-file-card{display:flex;gap:10px;align-items:center;border:1px solid #ddd;border-radius:8px;padding:8px 12px;max-width:420px}
-.sm-file-icon{font-size:20px}
-.sm-file-name{font-weight:700;font-size:14px}
-.sm-file-meta{font-size:12px;color:#616061}
-
-.sm-reactions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.sm-reaction{display:inline-flex;align-items:center;gap:5px;background:#f0f0f0;border:1px solid #f0f0f0;border-radius:12px;padding:1px 8px;font-size:12px;line-height:18px;color:#454245}
-.sm-reaction:hover{background:#e8f5fa;border-color:#1264a3;color:#1d1c1d}
-.sm-reaction[aria-pressed="true"]{background:#e8f5fa;border-color:#1264a3;color:#1264a3}
-.sm-reaction:disabled{cursor:default}
-.sm-reaction-count{font-weight:700;font-size:12px}
-.sm-message-actions{position:absolute;right:8px;top:-8px;display:flex;gap:2px;padding:3px;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 1px 4px #0001;opacity:0;z-index:2}
-.sm-msg:hover .sm-message-actions,.sm-msg:focus-within .sm-message-actions{opacity:1}
-.sm-message-actions button,.sm-message-actions a{display:inline-flex;align-items:center;justify-content:center;width:32px;min-height:32px;padding:4px;border:0;border-radius:4px;background:#fff;color:#616061;font:inherit;font-size:12px;cursor:pointer;text-decoration:none}
-.sm-message-actions button:hover,.sm-message-actions a:hover{background:#f0f0f0;color:#1d1c1d}
-.sm-message-actions button:disabled{opacity:.5;cursor:default}
-.sm-message-actions svg{width:18px;height:18px;flex:none}
-.sm-action-error{font-size:13px;color:#a12622;margin-top:6px}
-.sm-reaction-picker{position:fixed;inset:auto;top:0;left:0;margin:0;z-index:100;width:300px;max-width:calc(100vw - 24px);max-height:calc(var(--sm-viewport-height,100dvh) - 24px);padding:16px;border:1px solid #ddd;border-radius:12px;color:#1d1c1d;box-shadow:0 8px 32px #0003}
-.sm-reaction-picker-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-.sm-reaction-picker h2{font-size:16px;margin:0}
-.sm-reaction-picker button{min-width:40px;min-height:40px;border:0;border-radius:6px;background:#fff;font:inherit;cursor:pointer}
-.sm-reaction-picker button:hover,.sm-reaction-picker button:focus-visible{background:#f0f0f0}
-.sm-reaction-picker button:disabled{opacity:.5;cursor:default}
-.sm-reaction-choices{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.sm-reaction-choices button{font-size:24px}
-.sm-file-card:hover{background:#f8f8f8}
-
-.sm-replies{display:inline-flex;align-items:center;gap:8px;margin-top:4px;font-size:13px;font-weight:700;color:#1264a3}
-.sm-replies:hover{color:#0b4c81}
-.sm-replies-time{font-weight:400;color:#616061}
-.sm-empty{color:#616061;font-size:14px;padding:16px 0}
-
-.sm-assist{border:1px solid #e8e8e8;border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fafafa}
-.sm-assist-title{font-weight:700;font-size:14px}
-.sm-assist-status{font-size:13px;color:#616061;margin-top:2px}
-.sm-assist-status .sm-stream{margin-left:2px}
-.sm-prompts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.sm-prompt{border:1px solid #ddd;border-radius:16px;padding:5px 12px;font-size:13px;background:#fff}
-
-.sm-cards{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}
-.sm-card{border:1px solid #e8e8e8;border-radius:8px;padding:10px 14px;min-width:150px}
-.sm-card-k{font-size:12px;color:#616061;text-transform:uppercase;letter-spacing:.4px}
-.sm-card-v{font-size:16px;font-weight:700;margin-top:2px}
-.sm-h2{font-size:15px;font-weight:900;margin:18px 0 6px}
-.sm-table{border-collapse:collapse;width:100%;max-width:900px;font-size:14px}
-.sm-table th{text-align:left;font-size:12px;color:#616061;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:4px 10px 4px 0;border-bottom:1px solid #e8e8e8}
-.sm-table td{padding:6px 10px 6px 0;border-bottom:1px solid #f2f2f2;vertical-align:top}
-.sm-tag{display:inline-block;background:#f0f0f0;color:#454245;border-radius:10px;padding:0 8px;font-size:11px;font-weight:700}
-.sm-muted{color:#616061}
-
-@media (min-width:700px) and (max-width:1000px){
-  .sm-side{width:180px}
-  .sm-panel{min-width:300px;max-width:calc(100% - 360px)}
-  .sm-top{padding:8px 12px;gap:6px;align-items:center;flex-wrap:wrap}
-  .sm-top h1{min-width:0;overflow-wrap:anywhere}
-  .sm-top .sm-sub{display:none}
-  .sm-top-actions{min-width:0;max-width:100%;flex-shrink:1}
-  .sm-identity{min-width:0;max-width:100%}
-  .sm-identity-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .sm-replies{flex-wrap:wrap}
-  .sm-att-img,.sm-file-img,.sm-video-thumb,.sm-file-card{max-width:100%}
-}
-@media (max-width:699px),(hover:none),(pointer:coarse){
-  .sm-message-actions{position:static;opacity:1;justify-content:flex-start;gap:6px;margin-top:6px;padding:0;border:0;box-shadow:none;background:none}
-  .sm-message-actions button,.sm-message-actions a{width:40px;min-height:40px;background:none}
-}
-@media (max-width:699px){
-  html,body{overflow:hidden;overscroll-behavior:none}
-  body{overflow-wrap:anywhere}
-  .sm-app{position:fixed;top:var(--sm-viewport-top,0px);left:0;width:100%;height:100dvh;height:var(--sm-viewport-height,100dvh);flex-direction:column}
-  .sm-side,.sm-resize{display:none}
-  .sm-mobile-bar{display:block;flex:none;background:#3f0e40;color:#fff;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;z-index:10}
-  .sm-mobile-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
-  .sm-mobile-workspace{display:flex;align-items:center;min-height:40px;min-width:0;color:#fff;font-size:17px;font-weight:900}
-  .sm-mobile-bar .sm-identity{flex:none;max-width:55%;color:#1d1c1d}
-  .sm-identity summary{min-height:40px;background:#fff;border-radius:20px}
-  .sm-identity-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .sm-identity-list{width:280px;max-width:calc(100vw - 24px);max-height:calc(var(--sm-viewport-height,100dvh) - 120px);overflow-y:auto}
-  .sm-identity-list button{min-height:40px}
-  .sm-identity-list button>span{min-width:0;overflow-wrap:anywhere}
-  .sm-identity-user{white-space:normal}
-  .sm-channel-switch{display:block;width:100%;min-height:40px;margin-top:6px;padding:6px 10px;border:1px solid #79547a;border-radius:5px;background:#522653;color:#fff;font:inherit;font-size:16px}
-  .sm-main{min-height:0}
-  .sm-app-thread .sm-main{display:none}
-  .sm-panel{width:100%;min-width:0;min-height:0;flex:1;border-left:0}
-  .sm-top{padding:6px 12px;align-items:center;gap:10px;flex-wrap:wrap}
-  .sm-top h1{font-size:16px;min-width:0}
-  .sm-top .sm-sub,.sm-top .sm-identity,.sm-live{display:none}
-  .sm-panel-top{padding:6px 12px;align-items:center}
-  .sm-panel-back{display:inline-flex;align-items:center;justify-content:center;width:40px;min-height:40px;padding:0;border:0;font-size:22px}
-  .sm-panel-close,.sm-panel-expand{display:none}
-  .sm-main .sm-page,.sm-panel-body{min-height:0;padding:8px 12px 20px;overscroll-behavior:contain}
-  .sm-msg{padding:8px 0;gap:10px}
-  .sm-msg-body,.sm-card-v,.sm-field,.sm-att,.sm-context,.sm-file-card{overflow-wrap:anywhere}
-  .sm-text,.sm-blocks,.sm-field,.sm-att-text,.sm-att-pretext{font-size:16px;line-height:24px}
-  .sm-name{font-size:14px}
-  .sm-time{font-size:12px}
-  .sm-composer,.sm-panel .sm-composer{padding:8px 12px calc(10px + env(safe-area-inset-bottom))}
-  .sm-composer-text{font-size:16px;line-height:22px;resize:none;max-height:30vh}
-  .sm-composer-lock input{font-size:16px;min-height:40px;flex:1;min-width:0}
-  .sm-composer-lock>span:first-child{width:100%}
-  .sm-mentions,.sm-panel .sm-mentions{left:12px;right:12px;max-height:min(260px,40vh)}
-  .sm-mention{min-height:40px}
-  .sm-btn,.sm-select,.sm-reaction,.sm-prompt,.sm-replies,.sm-back,.sm-icon-btn,.sm-composer-send,.sm-composer-lock .sm-lock-go,.sm-lock-out{min-height:40px;display:inline-flex;align-items:center}
-  .sm-btn,.sm-select{max-width:100%;white-space:normal}
-  .sm-replies{flex-wrap:wrap;gap:4px 8px}
-  .sm-section-split{flex-wrap:wrap}
-  .sm-section-main{flex-basis:100%}
-  .sm-section-acc,.sm-context>*{min-width:0;max-width:100%}
-  .sm-att-img,.sm-file-img,.sm-video-thumb{max-width:100%;height:auto}
-  .sm-file-card,.sm-unsupported{max-width:100%}
-  .sm-file-card>div:last-child{min-width:0}
-  .sm-cards{gap:10px}
-  .sm-card{flex:1 1 calc(50% - 5px);min-width:0}
-  .sm-table,.sm-table tbody{display:block;width:100%}
-  .sm-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;padding:12px 0;border-bottom:1px solid #e8e8e8}
-  .sm-table tr:first-child{display:none}
-  .sm-table td{display:block;padding:0;border:0;overflow-wrap:anywhere}
-  .sm-table td:before{content:attr(data-label);display:block;font-size:11px;color:#616061;text-transform:uppercase;letter-spacing:.4px}
-  .sm-table td a{display:inline-flex;align-items:center;min-height:40px}
-  .sm-shot{width:100%;padding:12px}
-}
-`;
+const DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+});
 
 function ctxOf(store: Store): RenderContext {
-  return { users: store.users, channels: store.channels, botUserId: store.bot.userId };
+  return {
+    users: store.users,
+    channels: store.channels,
+    botUserId: store.bot.userId,
+    linkStates: store.linkStates,
+  };
+}
+
+function themeOf(opts: RenderOptions): ThemeName {
+  for (const name of [opts.theme, opts.defaultTheme, process.env.SLACK_MOCK_THEME])
+    if (name && Object.hasOwn(THEMES, name)) return name as ThemeName;
+  return "light";
 }
 
 /** A CSS width the page can trust, or the default. */
@@ -396,14 +84,16 @@ function panelParam(opts: RenderOptions): string {
   return width.endsWith("%") ? width.slice(0, -1) : width;
 }
 
-/** Query string for links, carrying screenshot / refresh / panel / full. */
-function query(opts: RenderOptions, over: { full?: boolean } = {}): string {
-  if (opts.screenshot) return "?screenshot";
+/** Query string for links, carrying screenshot / refresh / panel / full / theme. */
+function query(opts: RenderOptions, over: { full?: boolean; theme?: ThemeName } = {}): string {
+  const theme = over.theme ?? (opts.theme && themeOf(opts));
+  if (opts.screenshot) return theme ? `?screenshot&theme=${theme}` : "?screenshot";
   const parts: string[] = [];
   if (opts.refreshSec) parts.push(`refresh=${opts.refreshSec}`);
   const panel = panelParam(opts);
   if (panel) parts.push(`panel=${panel}`);
   if (over.full ?? opts.threadView === "full") parts.push("full");
+  if (theme) parts.push(`theme=${theme}`);
   return parts.length ? `?${parts.join("&")}` : "";
 }
 
@@ -446,7 +136,17 @@ function dayLabel(ts: string): string {
   if (dayKey(d) === dayKey(now)) return "Today";
   const yesterday = new Date(now.getTime() - 86_400_000);
   if (dayKey(d) === dayKey(yesterday)) return "Yesterday";
-  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  // Slack writes "Friday, October 20th".
+  const day = d.getDate();
+  const suffix =
+    day % 10 === 1 && day !== 11
+      ? "st"
+      : day % 10 === 2 && day !== 12
+        ? "nd"
+        : day % 10 === 3 && day !== 13
+          ? "rd"
+          : "th";
+  return `${DAY_FORMAT.format(d)}${suffix}`;
 }
 
 function fileSize(bytes: number): string {
@@ -455,34 +155,22 @@ function fileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function hashIndex(s: string, buckets: number): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h % buckets;
-}
-
-function initials(name: string): string {
-  const words = name
-    .replace(/[^\p{L}\p{N} ]/gu, " ")
-    .trim()
-    .split(/\s+/);
-  const letters = words
-    .slice(0, 2)
-    .map((w) => w[0] ?? "")
-    .join("");
-  return (letters || name.slice(0, 2) || "?").toUpperCase();
-}
-
 function channelLabel(store: Store, c: SlackChannel): string {
   if (!c.is_im) return `#${c.name}`;
   const peer = c.user ? store.users.get(c.user) : undefined;
-  return peer ? displayName(peer) : c.name;
+  return peer ? peer.real_name || displayName(peer) : c.name;
 }
 
 function channelIcon(c: SlackChannel): string {
   if (c.is_im) return "@";
   if (c.is_private) return "🔒";
   return "#";
+}
+
+/** A small square avatar (sidebar rows, member stack, thread repliers). */
+function face(user: SlackUser, cls = "sm-face"): string {
+  const { inner, style } = userAvatar(user);
+  return `<span class="${cls}"${style}>${inner}</span>`;
 }
 
 function channelKind(c: SlackChannel): string {
@@ -500,7 +188,7 @@ function authorName(store: Store, m: SlackMessage): string {
   return m.bot_profile?.name ?? m.user ?? "unknown";
 }
 
-function avatarHtml(m: SlackMessage, name: string): string {
+function avatarHtml(store: Store, m: SlackMessage, name: string): string {
   const emojiName = m.icons?.emoji;
   if (emojiName) {
     const char = emojiChar(emojiName) ?? emojiName.replace(/:/g, "");
@@ -510,9 +198,11 @@ function avatarHtml(m: SlackMessage, name: string): string {
   if (imageUrl && /^(https?:\/\/|\/)/.test(imageUrl)) {
     return `<div class="sm-avatar"><img src="${escapeHtml(imageUrl)}" alt=""></div>`;
   }
+  // A custom username is another persona, so the user's own picture does not apply.
+  const user = m.user && !m.username ? store.users.get(m.user) : undefined;
+  if (user) return face(user, "sm-avatar");
   const seed = m.user ?? m.bot_id ?? name;
-  const color = AVATAR_COLORS[hashIndex(seed, AVATAR_COLORS.length)];
-  return `<div class="sm-avatar" style="background:${color}">${escapeHtml(initials(name))}</div>`;
+  return `<div class="sm-avatar" style="background:${avatarColor(seed)}">${escapeHtml(initials(name))}</div>`;
 }
 
 function reactionsHtml(
@@ -535,14 +225,28 @@ function reactionsHtml(
       ? `<button type="button" class="sm-reaction" title="${escapeHtml(who)}" data-reaction="${escapeHtml(r.name)}" data-users="${escapeHtml(JSON.stringify(r.users))}" aria-label="Add :${escapeHtml(r.name)}: reaction, ${r.count} ${r.count === 1 ? "person" : "people"} reacted" aria-pressed="false"${locked ? " disabled" : ""}>${content}</button>`
       : `<span class="sm-reaction" title="${escapeHtml(who)}">${content}</span>`;
   });
-  return `<div class="sm-reactions">${chips.join("")}</div>`;
+  // Slack ends the row with an "add reaction" pill. It is not a `sm-reaction`: the page script
+  // reads a count from each of those.
+  const add = interactive
+    ? `<button type="button" class="sm-add-reaction sm-reaction-more" aria-label="Add reaction" aria-haspopup="dialog" aria-controls="sm-reaction-picker" title="Add reaction"${locked ? " disabled" : ""}>${icon("emojiPlus", 16)}</button>`
+    : `<span class="sm-reaction-more">${icon("emojiPlus", 16)}</span>`;
+  return `<div class="sm-reactions">${chips.join("")}${add}</div>`;
 }
 
+const QUICK_REACTIONS = ["white_check_mark", "eyes", "raised_hands"];
+
+/** The hover toolbar: three quick reactions, the picker, the thread, and Slack's other icons. */
 function messageActions(m: SlackMessage, opts: RenderOptions): string {
   const thread = m.thread_ts ?? m.ts;
-  const reactIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="12" r="8"/><path d="M7 14c2 3 6 3 8 0M8 9h.01M14 9h.01M20 2v6M17 5h6" stroke-linecap="round"/></svg>`;
-  const replyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z" stroke-linejoin="round"/><path d="M7 9h10M7 13h6" stroke-linecap="round"/></svg>`;
-  return `<div class="sm-message-actions"><button type="button" class="sm-add-reaction" aria-label="Add reaction" aria-haspopup="dialog" aria-controls="sm-reaction-picker" title="Add reaction"${opts.writeGated ? " disabled" : ""}>${reactIcon}</button><a class="sm-reply-action" href="${threadHref(m.channel, thread, opts)}" data-thread="${escapeHtml(thread)}" aria-label="Open thread" title="Open thread">${replyIcon}</a></div><div class="sm-action-error" role="alert" hidden></div>`;
+  const disabled = opts.writeGated ? " disabled" : "";
+  const quick = QUICK_REACTIONS.map(
+    (name) =>
+      `<button type="button" class="sm-quick" data-reaction="${name}" aria-label="React with ${name.replaceAll("_", " ")}" title=":${name}:"${disabled}>${emojiChar(name)}</button>`,
+  ).join("");
+  const inert = ["share", "bookmark", "moreVertical"]
+    .map((name) => `<span aria-hidden="true">${icon(name)}</span>`)
+    .join("");
+  return `<div class="sm-message-actions">${quick}<button type="button" class="sm-add-reaction" aria-label="Add reaction" aria-haspopup="dialog" aria-controls="sm-reaction-picker" title="Add reaction"${disabled}>${icon("emojiPlus")}</button><a class="sm-reply-action" href="${threadHref(m.channel, thread, opts)}" data-thread="${escapeHtml(thread)}" aria-label="Open thread" title="Open thread">${icon("thread")}</a>${inert}</div><div class="sm-action-error" role="alert" hidden></div>`;
 }
 
 function reactionPicker(): string {
@@ -585,7 +289,7 @@ function filesHtml(files: SlackFile[] | undefined, token: string): string {
     const name = escapeHtml(f.title || f.name);
     const meta = `${escapeHtml(f.pretty_type || f.filetype || "File")} · ${fileSize(f.size ?? 0)}`;
     const label = href ? `<a href="${href}">${name}</a>` : name;
-    return `<div class="sm-file-card"><div class="sm-file-icon">📄</div><div><div class="sm-file-name">${label}</div><div class="sm-file-meta">${meta}</div></div></div>`;
+    return `<div class="sm-file-card"><div class="sm-file-icon">${icon("file")}</div><div><div class="sm-file-name">${label}</div><div class="sm-file-meta">${meta}</div></div></div>`;
   });
   return `<div class="sm-files">${cards.join("")}</div>`;
 }
@@ -597,6 +301,23 @@ interface MessageFlags {
   dividers?: boolean;
   /** ts of the message whose thread is open in the side panel. */
   openTs?: string;
+  /** Same author as the message above, minutes apart: no avatar and no name line. */
+  cont?: boolean;
+}
+
+/** Up to five distinct repliers of a thread, in reply order. */
+function replyFaces(store: Store, m: SlackMessage): string {
+  const seen = new Set<string>();
+  for (const reply of store.replies(m.channel, m.ts, { limit: 1000 }).items.slice(1))
+    if (reply.user && store.users.has(reply.user)) seen.add(reply.user);
+  const faces = [...seen].slice(0, 5).map((id) => face(store.users.get(id)!));
+  return faces.length ? `<span class="sm-replies-faces">${faces.join("")}</span>` : "";
+}
+
+function lastReply(ts: string): string {
+  const days = Math.floor((Date.now() / 1000 - Number(ts)) / 86_400);
+  if (dayLabel(ts) === "Today") return `today at ${timeOf(ts)}`;
+  return days <= 1 ? "1 day ago" : `${days} days ago`;
 }
 
 function renderMessage(
@@ -627,14 +348,13 @@ function renderMessage(
   if (m.attachments?.length) body.push(renderAttachments(m.attachments, ctx));
   body.push(filesHtml(m.files, store.bot.token));
   body.push(reactionsHtml(store, m, interactive, Boolean(opts.writeGated)));
-  if (flags.ephemeral) body.push(`<div class="sm-eph-note">Only visible to you</div>`);
   if (flags.threadLink && m.reply_count) {
     const count = `${m.reply_count} ${m.reply_count === 1 ? "reply" : "replies"}`;
     const last = m.latest_reply
-      ? `<span class="sm-replies-time">Last reply ${timeOf(m.latest_reply)}</span>`
+      ? `<span class="sm-replies-time">Last reply ${lastReply(m.latest_reply)}</span>`
       : "";
     body.push(
-      `<a class="sm-replies" href="${threadHref(m.channel, m.thread_ts ?? m.ts, opts)}">${count}${last}</a>`,
+      `<a class="sm-replies" href="${threadHref(m.channel, m.thread_ts ?? m.ts, opts)}">${replyFaces(store, m)}<span class="sm-replies-count">${count}</span>${last}<span class="sm-replies-view">View thread</span><span class="sm-replies-go">${icon("chevronRight", 16)}</span></a>`,
     );
   }
   if (interactive) body.push(messageActions(m, opts));
@@ -643,7 +363,21 @@ function renderMessage(
       ? `<span class="sm-stream" title="streaming">•••</span>`
       : "";
   const open = flags.openTs && flags.openTs === m.ts ? " sm-msg-open" : "";
-  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}" data-ts="${escapeHtml(m.ts)}" data-channel="${escapeHtml(m.channel)}">${avatarHtml(m, name)}<div class="sm-msg-body"><div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>${body.join("")}</div></div>`;
+  const note = flags.ephemeral ? `<div class="sm-eph-note">Only visible to you</div>` : "";
+  const head = flags.cont
+    ? streaming
+    : `${note}<div class="sm-msg-head"><span class="sm-name">${escapeHtml(name)}</span>${isApp ? `<span class="sm-badge">APP</span>` : ""}<span class="sm-time">${timeOf(m.ts)}</span>${streaming}</div>`;
+  const gutter = flags.cont
+    ? `<div class="sm-gutter">${timeOf(m.ts)}</div>`
+    : avatarHtml(store, m, name);
+  return `<div class="sm-msg${flags.ephemeral ? " sm-msg-eph" : ""}${open}${flags.cont ? " sm-msg-cont" : ""}" data-ts="${escapeHtml(m.ts)}" data-channel="${escapeHtml(m.channel)}">${gutter}<div class="sm-msg-body">${head}${body.join("")}</div></div>`;
+}
+
+/** Slack groups a message under the one above when the author matches and it came within minutes. */
+function continues(prev: SlackMessage | undefined, m: SlackMessage): boolean {
+  if (!prev) return false;
+  const same = prev.user === m.user && prev.bot_id === m.bot_id && prev.username === m.username;
+  return same && Number(m.ts) - Number(prev.ts) < 300;
 }
 
 function renderMessageList(
@@ -655,37 +389,104 @@ function renderMessageList(
 ): string {
   const out: string[] = [];
   let day = "";
+  let prev: SlackMessage | undefined;
   for (const m of messages) {
     const label = flags.dividers === false ? "" : dayLabel(m.ts);
     if (label && label !== day) {
       day = label;
-      out.push(`<div class="sm-daydiv"><span>${escapeHtml(label)}</span></div>`);
+      prev = undefined;
+      out.push(
+        `<div class="sm-daydiv"><span>${escapeHtml(label)}${icon("chevronDown", 14)}</span></div>`,
+      );
     }
-    out.push(renderMessage(store, ctx, m, opts, { ...flags, ephemeral: m._ephemeral === true }));
+    const ephemeral = m._ephemeral === true;
+    out.push(
+      renderMessage(store, ctx, m, opts, {
+        ...flags,
+        ephemeral,
+        cont: !ephemeral && continues(prev, m),
+      }),
+    );
+    prev = ephemeral ? undefined : m;
   }
   return out.join("");
 }
 
 // -------------------------------------------------------------------- shell
 
-function sidebar(store: Store, opts: RenderOptions, active?: string): string {
-  const channels = [...store.channels.values()].sort((a, b) =>
+function sortedChannels(store: Store): SlackChannel[] {
+  return [...store.channels.values()].sort((a, b) =>
     channelLabel(store, a).localeCompare(channelLabel(store, b)),
   );
-  const links = channels
-    .map(
-      (c) =>
-        `<a class="${c.id === active ? "sm-active" : ""}" href="${channelHref(c.id, opts)}">${escapeHtml(channelIcon(c))} ${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</a>`,
-    )
-    .join("");
-  const options = channels
+}
+
+/** Phones: the workspace name, the "post as" pick and a channel switcher in one top bar. */
+function mobileBar(store: Store, opts: RenderOptions, active?: string): string {
+  const options = sortedChannels(store)
     .map(
       (c) =>
         `<option value="${escapeHtml(channelHref(c.id, opts))}"${c.id === active ? " selected" : ""}>${escapeHtml(channelLabel(store, c))}</option>`,
     )
     .join("");
-  const mobile = `<div class="sm-mobile-bar"><div class="sm-mobile-heading"><a class="sm-mobile-workspace" href="${homeHref(opts)}">${escapeHtml(store.team.name)}</a>${identityChip(store, opts)}</div><select class="sm-channel-switch" aria-label="Channel"><option value="${homeHref(opts)}"${active ? "" : " selected"}>Workspace</option>${options}</select></div>`;
-  return `${mobile}<nav class="sm-side"><div class="sm-side-title"><a href="${homeHref(opts)}" style="color:#fff">${escapeHtml(store.team.name)}</a><span class="sm-side-team">${escapeHtml(store.team.id)} · slack-mock</span></div><div class="sm-side-h">Channels</div>${links}</nav>`;
+  return `<div class="sm-mobile-bar"><div class="sm-mobile-heading"><a class="sm-mobile-workspace" href="${homeHref(opts)}">${escapeHtml(store.team.name)}</a>${identityChip(store, opts)}</div><select class="sm-channel-switch" aria-label="Channel"><option value="${homeHref(opts)}"${active ? "" : " selected"}>Workspace</option>${options}</select></div>`;
+}
+
+/** Rows that only complete the picture (Threads, Huddles, the rail tabs) stay out of the a11y tree. */
+function inertRow(glyph: string, label: string): string {
+  return `<span class="sm-row" aria-hidden="true"><span class="sm-row-ic">${glyph}</span><span class="sm-row-name">${escapeHtml(label)}</span></span>`;
+}
+
+function sidebar(store: Store, opts: RenderOptions, active?: string): string {
+  const row = (c: SlackChannel) => {
+    const peer = c.is_im && c.user ? store.users.get(c.user) : undefined;
+    const glyph = peer
+      ? `${face(peer, "sm-row-av")}<span class="sm-presence"></span>`
+      : icon(c.is_private ? "lock" : "hash", 16);
+    return `<a class="sm-row${c.id === active ? " sm-active" : ""}" href="${channelHref(c.id, opts)}"><span class="sm-row-ic">${glyph}</span><span class="sm-row-name">${escapeHtml(c.is_im ? channelLabel(store, c) : c.name)}</span></a>`;
+  };
+  const section = (label: string, rows: string) =>
+    rows ? `<div class="sm-side-h">${icon("caretDown", 16)}${label}</div>${rows}` : "";
+  const channels = sortedChannels(store);
+  const bot = store.users.get(store.bot.userId);
+  const title = `<div class="sm-side-title"><a href="${homeHref(opts)}"><span>${escapeHtml(store.team.name)}</span>${icon("chevronDown", 16)}</a><span class="sm-side-tools" aria-hidden="true"><span>${icon("filter", 18)}</span><span>${icon("compose", 18)}</span></span></div>`;
+  const top = `${inertRow(icon("thread", 16), "Threads")}${inertRow(icon("headphones", 16), "Huddles")}${inertRow(icon("share", 16), "Drafts & sent")}`;
+  return `<nav class="sm-side">${title}${top}${section(
+    "Channels",
+    channels
+      .filter((c) => !c.is_im)
+      .map(row)
+      .join(""),
+  )}${section(
+    "Direct messages",
+    channels
+      .filter((c) => c.is_im)
+      .map(row)
+      .join(""),
+  )}${section("Apps", bot ? inertRow(face(bot, "sm-row-av"), displayName(bot)) : "")}</nav>`;
+}
+
+/** The window's title bar: history arrows, the search field, the theme switch. */
+function titlebar(store: Store, opts: RenderOptions): string {
+  const next = themeOf(opts) === "dark" ? "light" : "dark";
+  const btn = (name: string, cls = "") =>
+    `<span class="sm-tb-btn${cls}" aria-hidden="true">${icon(name, 18)}</span>`;
+  return `<div class="sm-titlebar"><div class="sm-tb-left">${btn("arrowLeft")}${btn("arrowRight", " sm-tb-off")}${btn("clock")}</div><div class="sm-search" aria-hidden="true">${icon("search", 16)}<span>Search ${escapeHtml(store.team.name)}</span></div><div class="sm-tb-right"><a class="sm-tb-btn sm-theme-toggle" href="${query(opts, { theme: next }) || "?"}" title="Switch to the ${next} theme" aria-label="Switch to the ${next} theme">${icon(next === "dark" ? "moon" : "sun", 18)}</a>${btn("help")}</div></div>`;
+}
+
+/** The tab rail: workspace icon, Slack's tabs, and at the bottom who the composers post as. */
+function rail(store: Store, opts: RenderOptions): string {
+  const tabs = [
+    ["home", "Home"],
+    ["dms", "DMs"],
+    ["bell", "Activity"],
+    ["more", "More"],
+  ]
+    .map(
+      ([name, label], i) =>
+        `<span class="sm-tab${i ? "" : " sm-tab-on"}" aria-hidden="true"><span class="sm-tab-ic">${icon(name!)}</span>${label}</span>`,
+    )
+    .join("");
+  return `<div class="sm-rail"><a class="sm-team-icon" href="${homeHref(opts)}" title="${escapeHtml(store.team.name)}">${escapeHtml(initials(store.team.name))}</a>${tabs}<div class="sm-rail-end"><span class="sm-rail-add" aria-hidden="true">${icon("plus")}</span>${identityChip(store, opts)}</div></div>`;
 }
 
 interface ShellParts {
@@ -708,7 +509,9 @@ function shell(store: Store, opts: RenderOptions, parts: ShellParts): string {
       ? `<meta http-equiv="refresh" content="${Math.max(1, Math.floor(opts.refreshSec))}">`
       : "";
   const style = opts.screenshot ? "" : ` style="--sm-panel-w:${panelWidth(opts)}"`;
-  const head = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${escapeHtml(parts.title)}</title>${refresh}<style>${CSS}</style></head>`;
+  // A screenshot page inlines the font: a one-shot capture must not race a font request.
+  const fontBase = opts.screenshot ? undefined : opts.fontBase;
+  const head = `<!doctype html><html lang="en" data-theme="${themeOf(opts)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${escapeHtml(parts.title)}</title>${refresh}${fontBase ? fontPreloads(fontBase) : ""}<style>${stylesheet(fontBase)}</style></head>`;
   if (opts.screenshot) {
     return `${head}<body><div class="sm-shot">${parts.header}<div class="sm-page">${parts.main}</div></div></body></html>`;
   }
@@ -716,7 +519,7 @@ function shell(store: Store, opts: RenderOptions, parts: ShellParts): string {
   const handle = parts.panel
     ? `<div class="sm-resize" title="Drag to resize, double-click to reset"></div>`
     : "";
-  return `${head}<body${style}><div class="${app}">${sidebar(store, opts, parts.active)}<div class="sm-main">${parts.header}<div class="sm-page sm-scroll">${parts.main}</div>${parts.footer ?? ""}</div>${handle}${parts.panel ?? ""}</div>${parts.script ?? ""}</body></html>`;
+  return `${head}<body${style}><div class="${app}">${mobileBar(store, opts, parts.active)}${titlebar(store, opts)}<div class="sm-body">${rail(store, opts)}<div class="sm-workspace">${sidebar(store, opts, parts.active)}<div class="sm-main">${parts.header}<div class="sm-page sm-scroll">${parts.main}</div>${parts.footer ?? ""}</div>${handle}${parts.panel ?? ""}</div></div></div>${parts.script ?? ""}</body></html>`;
 }
 
 interface BackLink {
@@ -762,7 +565,7 @@ function indexView(store: Store, opts: RenderOptions): string {
     )
     .join("");
 
-  const main = `<div class="sm-cards">${cards}</div>
+  const main = `<div class="sm-admin"><div class="sm-cards">${cards}</div>
 <div class="sm-h2">Channels</div>
 ${
   channels.length
@@ -770,16 +573,11 @@ ${
     : `<div class="sm-empty">No channels yet</div>`
 }
 <div class="sm-h2">Users</div>
-<table class="sm-table"><tr><th>Name</th><th>Real name</th><th>Title</th><th>Email</th><th>Id</th><th></th></tr>${userRows}</table>`;
+<table class="sm-table"><tr><th>Name</th><th>Real name</th><th>Title</th><th>Email</th><th>Id</th><th></th></tr>${userRows}</table></div>`;
 
   return shell(store, opts, {
     title: `${store.team.name} · slack-mock`,
-    header: topbar(
-      escapeHtml(store.team.name),
-      "slack-mock workspace",
-      undefined,
-      identityChip(store, opts),
-    ),
+    header: topbar(escapeHtml(store.team.name), "slack-mock workspace"),
     main,
     script: opts.screenshot ? "" : uiScript(store, opts, undefined, false),
   });
@@ -810,15 +608,27 @@ function channelColumn(
   });
 }
 
+/** `# general ⌄`, the topic, then the member stack, the huddle button and the tab row. */
 function channelHeader(store: Store, opts: RenderOptions, channel: SlackChannel): string {
   const sub = [channel.topic.value, channel.purpose.value].filter(Boolean).join(" · ");
-  const back = opts.screenshot ? undefined : { href: homeHref(opts), label: "← Workspace" };
-  return topbar(
-    escapeHtml(channelLabel(store, channel)),
+  const peer = channel.is_im && channel.user ? store.users.get(channel.user) : undefined;
+  const glyph = peer ? face(peer) : icon(channel.is_private ? "lock" : "hash", 18);
+  const name = channel.is_im ? channelLabel(store, channel) : channel.name;
+  const title = `${glyph}<span>${escapeHtml(name)}</span>`;
+  if (opts.screenshot) return topbar(title, escapeHtml(sub));
+  const members = channel.members.flatMap((id) => store.users.get(id) ?? []);
+  const stack = members
+    .slice(0, 3)
+    .map((u) => face(u))
+    .join("");
+  const actions = `<span class="sm-top-pill" aria-hidden="true"><span class="sm-faces">${stack}</span>${members.length}</span><span class="sm-top-pill" aria-hidden="true">${icon("headphones", 16)}${icon("chevronDown", 12)}</span><span class="sm-top-ic" aria-hidden="true">${icon("moreVertical", 18)}</span>`;
+  const tabs = `<div class="sm-tabs" aria-hidden="true"><span class="sm-tabs-on">${icon("thread", 14)}Messages</span><span>${icon("canvas", 14)}Add canvas</span><span>${icon("plus", 14)}</span></div>`;
+  return `${topbar(
+    `${title}<span class="sm-caret">${icon("chevronDown", 14)}</span>`,
     escapeHtml(sub),
-    back,
-    identityChip(store, opts),
-  );
+    { href: homeHref(opts), label: "← Workspace" },
+    actions,
+  )}${tabs}`;
 }
 
 // ---------------------------------------------------------------- composer
@@ -840,12 +650,11 @@ function identityChip(store: Store, opts: RenderOptions): string {
   const selected = users[0];
   if (!selected) return "";
   const name = selected.real_name || selected.name;
-  const avatar = `<span class="sm-identity-avatar" style="background:${AVATAR_COLORS[hashIndex(selected.id, AVATAR_COLORS.length)]}">${escapeHtml(initials(name))}</span>`;
+  const avatar = face(selected, "sm-identity-avatar");
   const items = users
     .map((u) => {
       const real = u.real_name || u.name;
-      const color = AVATAR_COLORS[hashIndex(u.id, AVATAR_COLORS.length)];
-      return `<li><button type="button" data-user="${escapeHtml(u.id)}"><span class="sm-identity-avatar" style="background:${color}">${escapeHtml(initials(real))}</span><span>${escapeHtml(real)}${userStatus(u)}</span><span class="sm-identity-user">@${escapeHtml(u.name)}</span></button></li>`;
+      return `<li><button type="button" data-user="${escapeHtml(u.id)}">${face(u, "sm-identity-avatar")}<span>${escapeHtml(real)}${userStatus(u)}</span><span class="sm-identity-user">@${escapeHtml(u.name)}</span></button></li>`;
     })
     .join("");
   const hidden = opts.writeGated ? " hidden" : "";
@@ -867,7 +676,16 @@ function composer(
   const lock = opts.writeGated
     ? `<div class="sm-composer-lock" hidden><span>Reading is open. Sign in to post.</span><input class="sm-lock-user" placeholder="user" autocomplete="username"><input class="sm-lock-pass" type="password" placeholder="password" autocomplete="current-password"><button type="button" class="sm-lock-go">Sign in</button><span class="sm-err"></span></div>`
     : "";
-  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}${gated}><div class="sm-mentions"></div><div class="sm-composer-box"><textarea class="sm-composer-text" rows="2" placeholder="${escapeHtml(placeholder)}" data-placeholder="${escapeHtml(placeholder)}"></textarea><div class="sm-composer-row"><button type="button" class="sm-composer-send">Send</button></div></div>${lock}<div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention<span class="sm-lock-state"></span></div></div>`;
+  // Slack's formatting bar and attachment tools are drawn for the picture only; the text box,
+  // the send button and @mentions work.
+  const tools = (names: string[]) =>
+    names.map((name) => (name ? `<span>${icon(name, 18)}</span>` : "<i></i>")).join("");
+  const format = `<div class="sm-composer-fmt" aria-hidden="true">${tools(["bold", "italic", "strike", "", "link", "", "listOrdered", "listBullet", "", "quote", "", "code", "codeBlock"])}</div>`;
+  const also = threadTs
+    ? `<div class="sm-composer-also" aria-hidden="true"><i></i>Also send to ${escapeHtml(channelLabel(store, channel))}</div>`
+    : "";
+  const row = `<div class="sm-composer-row"><span class="sm-composer-tools" aria-hidden="true"><span class="sm-tool-plus">${icon("plus", 18)}</span>${tools(["format", "smile", "at", "", "video", "mic", "", "slash"])}</span><button type="button" class="sm-composer-send" aria-label="Send now" title="Send now">${icon("send", 16)}</button><span class="sm-composer-send-more" aria-hidden="true">${icon("chevronDown", 14)}</span></div>`;
+  return `<div class="sm-composer" data-channel="${escapeHtml(channel.id)}"${thread}${gated}><div class="sm-mentions"></div><div class="sm-composer-box">${format}<textarea class="sm-composer-text" rows="1" placeholder="${escapeHtml(placeholder)}" data-placeholder="${escapeHtml(placeholder)}"></textarea>${also}${row}</div>${lock}<div class="sm-composer-hint">Enter to send, Shift+Enter for a new line, @name to mention<span class="sm-lock-state"></span></div></div>`;
 }
 
 /** Mention targets for the composer autocomplete: every user, bots included. */
@@ -879,7 +697,8 @@ function mentionData(store: Store): string {
       name: u.name,
       real: u.real_name || u.name,
       initials: initials(u.real_name || u.name),
-      color: AVATAR_COLORS[hashIndex(u.id, AVATAR_COLORS.length)],
+      color: avatarColor(u.id),
+      image: userImage(u),
       bot: u.is_bot,
     }));
   const json = JSON.stringify(users).replace(/</g, "\\u003c");
@@ -917,6 +736,7 @@ var raw=document.getElementById("sm-users");
 var USERS=raw?JSON.parse(raw.textContent||"[]"):[],HUMANS=USERS.filter(function(u){return !u.bot});
 var PEOPLE=USERS.concat([{name:"here",real:"Notify everyone online",initials:"@",color:"#616061"},{name:"channel",real:"Notify everyone in the channel",initials:"@",color:"#616061"}]);
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;"})}
+function paintAvatar(el,u){if(u.image){el.innerHTML='<img src="'+esc(u.image)+'" alt="">';el.style.backgroundColor=""}else{el.textContent=u.initials;el.style.backgroundColor=u.color}}
 var GATED=${opts.writeGated ? "true" : "false"},LIVE=${opts.live !== false && !opts.refreshSec ? "true" : "false"},CK="sm-presenter",IK="sm-identity",currentIdentity="",identityStorage=true;
 function cred(){try{return localStorage.getItem(CK)||""}catch(e){return ""}}
 function setCred(v){try{if(v)localStorage.setItem(CK,v);else localStorage.removeItem(CK)}catch(e){}}
@@ -945,8 +765,8 @@ if(window.visualViewport){window.visualViewport.addEventListener("resize",positi
 document.addEventListener("pointerdown",function(e){if(reactionDialog.open&&!reactionDialog.contains(e.target)&&!e.target.closest(".sm-add-reaction"))closeReactions()});
 document.addEventListener("focusin",function(e){if(reactionDialog.open&&!reactionDialog.contains(e.target)&&(!reactionTarget||e.target!==reactionTarget.querySelector(".sm-add-reaction")))closeReactions()});
 function hasReaction(button,user){return JSON.parse(button.dataset.users||"[]").indexOf(user)!==-1}
-function reactionUi(root){var u=identity(),locked=(GATED&&!cred())||!u;(root||document).querySelectorAll(".sm-add-reaction,.sm-reaction[data-reaction],.sm-reaction-choices button").forEach(function(button){button.disabled=locked||reactionBusy;if(button.classList.contains("sm-reaction")){var mine=Boolean(u&&hasReaction(button,u.id)),count=button.querySelector(".sm-reaction-count").textContent;button.setAttribute("aria-pressed",String(mine));button.setAttribute("aria-label",(mine?"Remove":"Add")+" :"+button.dataset.reaction+": reaction, "+count+" "+(count==="1"?"person":"people")+" reacted")}});if(locked)closeReactions()}
-function identityUi(){var u=identity();document.querySelectorAll(".sm-identity").forEach(function(chip){chip.hidden=GATED&&!cred();if(!u)return;var av=chip.querySelector("summary .sm-identity-avatar"),name=chip.querySelector(".sm-identity-name"),summary=chip.querySelector("summary");if(av){av.textContent=u.initials;av.style.backgroundColor=u.color}if(name)name.textContent=u.real;if(summary)summary.setAttribute("aria-label","Posting as "+u.real);chip.querySelectorAll("[data-user]").forEach(function(button){if(button.dataset.user===u.id)button.setAttribute("aria-current","true");else button.removeAttribute("aria-current")})});reactionUi()}
+function reactionUi(root){var u=identity(),locked=(GATED&&!cred())||!u;(root||document).querySelectorAll(".sm-add-reaction,.sm-quick,.sm-reaction[data-reaction],.sm-reaction-choices button").forEach(function(button){button.disabled=locked||reactionBusy;if(button.classList.contains("sm-reaction")){var mine=Boolean(u&&hasReaction(button,u.id)),count=button.querySelector(".sm-reaction-count").textContent;button.setAttribute("aria-pressed",String(mine));button.setAttribute("aria-label",(mine?"Remove":"Add")+" :"+button.dataset.reaction+": reaction, "+count+" "+(count==="1"?"person":"people")+" reacted")}});if(locked)closeReactions()}
+function identityUi(){var u=identity();document.querySelectorAll(".sm-identity").forEach(function(chip){chip.hidden=GATED&&!cred();if(!u)return;var av=chip.querySelector("summary .sm-identity-avatar"),name=chip.querySelector(".sm-identity-name"),summary=chip.querySelector("summary");if(av)paintAvatar(av,u);if(name)name.textContent=u.real;if(summary)summary.setAttribute("aria-label","Posting as "+u.real);chip.querySelectorAll("[data-user]").forEach(function(button){if(button.dataset.user===u.id)button.setAttribute("aria-current","true");else button.removeAttribute("aria-current")})});reactionUi()}
 function lockUi(){document.querySelectorAll(".sm-composer").forEach(function(box){var locked=GATED&&!cred(),lock=box.querySelector(".sm-composer-lock"),ta=box.querySelector(".sm-composer-text"),btn=box.querySelector(".sm-composer-send"),state=box.querySelector(".sm-lock-state");if(lock)lock.hidden=!locked;ta.disabled=locked;btn.disabled=locked;ta.placeholder=locked?"Sign in to post":(ta.dataset.placeholder||"");if(state)state.innerHTML=GATED&&!locked?' · signed in · <a href="#" class="sm-lock-out">Sign out</a>':""});identityUi()}
 function signIn(box){if(!box)return;var u=box.querySelector(".sm-lock-user").value.trim(),p=box.querySelector(".sm-lock-pass").value,err=box.querySelector(".sm-err");if(!u){err.textContent="Enter the presenter user";return}var c=btoa(u+":"+p);err.textContent="";fetch("/mock/presenter",{headers:{authorization:"Basic "+c}}).then(function(r){if(!r.ok)throw new Error(r.status===401||r.status===403?"Wrong user or password":"Sign-in failed ("+r.status+")");setCred(c);lockUi();box.querySelector(".sm-composer-text").focus()}).catch(function(e){err.textContent=e.message})}
 document.addEventListener("click",function(e){var pick=e.target.closest(".sm-identity-list button");if(pick){setIdentity(pick.dataset.user);identityUi();pick.closest(".sm-identity").open=false;return}if(!e.target.closest(".sm-identity"))document.querySelectorAll(".sm-identity[open]").forEach(function(chip){chip.open=false});var out=e.target.closest(".sm-lock-out");if(out){e.preventDefault();setCred("");lockUi();return}var go=e.target.closest(".sm-lock-go");if(go)signIn(go.closest(".sm-composer"))});
@@ -966,11 +786,11 @@ if(LIVE&&window.EventSource){
  var box0=document.querySelector(".sm-composer"),pm=/^\\/c\\/([^/]+)/.exec(location.pathname),chan=box0?box0.dataset.channel:(pm?decodeURIComponent(pm[1]):null);
  if(chan){
   var h1=document.querySelector(".sm-top h1"),dot=null;
-  if(h1){dot=document.createElement("span");dot.className="sm-live";dot.textContent="● live";h1.appendChild(dot)}
+  if(h1){dot=document.createElement("span");dot.className="sm-live";h1.appendChild(dot)}
   var es=new EventSource("/c/"+encodeURIComponent(chan)+"/events"),down=false;
   es.addEventListener("change",refresh);
-  es.onopen=function(){if(dot){dot.textContent="● live";dot.classList.remove("sm-live-off")}if(down){down=false;refresh()}};
-  es.onerror=function(){down=true;if(dot){dot.textContent="● reconnecting";dot.classList.add("sm-live-off")}};
+  es.onopen=function(){if(dot){dot.textContent="";dot.classList.remove("sm-live-off")}if(down){down=false;refresh()}};
+  es.onerror=function(){down=true;if(dot){dot.textContent="Reconnecting";dot.classList.add("sm-live-off")}};
  }
 }
 function react(message,name){
@@ -1001,7 +821,7 @@ document.querySelectorAll(".sm-composer").forEach(function(box){
   var list=PEOPLE.filter(function(u){return !low||u.name.toLowerCase().indexOf(low)===0||u.real.toLowerCase().indexOf(low)===0}).slice(0,8);
   if(!list.length)return close();
   items=list;active=0;
-  menu.innerHTML=list.map(function(u,i){return '<div class="sm-mention'+(i?"":" sm-mention-on")+'" data-i="'+i+'"><span class="sm-mention-av" style="background:'+esc(u.color)+'">'+esc(u.initials)+'</span><span class="sm-mention-name">@'+esc(u.name)+'</span><span class="sm-mention-real">'+esc(u.real)+'</span></div>'}).join("");
+  menu.innerHTML=list.map(function(u,i){return '<div class="sm-mention'+(i?"":" sm-mention-on")+'" data-i="'+i+'"><span class="sm-mention-av"'+(u.image?'><img src="'+esc(u.image)+'" alt="">':' style="background:'+esc(u.color)+'">'+esc(u.initials))+'</span><span class="sm-mention-name">@'+esc(u.name)+'</span><span class="sm-mention-real">'+esc(u.real)+'</span></div>'}).join("");
   menu.style.display="block";
  }
  function pick(i){var u=items[i];if(!u)return;var pos=ta.selectionStart,before=ta.value.slice(0,pos).replace(/@\\w*$/,"@"+u.name+" "),after=ta.value.slice(pos);ta.value=before+after;ta.selectionStart=ta.selectionEnd=before.length;close();ta.focus()}
@@ -1083,7 +903,7 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
   const replies = items.slice(1);
   const label = channelLabel(store, channel);
   const repliesBar = replies.length
-    ? `<div class="sm-daydiv"><span>${replies.length} ${replies.length === 1 ? "reply" : "replies"}</span></div>`
+    ? `<div class="sm-replies-div"><span>${replies.length} ${replies.length === 1 ? "reply" : "replies"}</span></div>`
     : `<div class="sm-empty">No replies yet</div>`;
 
   const body = `${assistantPanel(store, channel.id, ts)}${renderMessage(store, ctx, parent, opts)}${repliesBar}${renderMessageList(store, ctx, replies, opts, { dividers: false })}`;
@@ -1110,7 +930,7 @@ function threadView(store: Store, opts: RenderOptions, channelId: string, ts: st
       `Thread <span class="sm-muted">·</span> ${escapeHtml(label)}`,
       "",
       { href: close, label: `← ${label}` },
-      `<a class="sm-icon-btn" href="${threadHref(channel.id, ts, opts, { full: false })}" title="Collapse to panel" aria-label="Collapse to panel">⤡</a>${identityChip(store, opts)}`,
+      `<a class="sm-icon-btn" href="${threadHref(channel.id, ts, opts, { full: false })}" title="Collapse to panel" aria-label="Collapse to panel">⤡</a>`,
     );
     return shell(store, opts, {
       title,

@@ -34,5 +34,7 @@ test("special mentions, unknown names and e-mail addresses are left alone", asyn
 test("a resolved mention renders as a highlighted pill", async () => {
   await post("@Agent Swarm pill check");
   const html = await (await fetch(`${mock.baseUrl}/c/general`)).text();
-  expect(html).toContain('<span class="sm-pill">@Agent Swarm</span> pill check');
+  expect(html).toMatch(
+    /<span class="sm-pill sm-chip sm-chip-user sm-chip-app"><span class="sm-chip-av"[^>]*>AS<\/span>@Agent Swarm<\/span> pill check/,
+  );
 });

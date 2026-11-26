@@ -31,6 +31,8 @@ export interface StoreOptions {
   teamDomain?: string;
   appId?: string;
   appName?: string;
+  /** Picture of the app's bot user (an http(s), root-relative or data:image URL). */
+  appIcon?: string;
   botUserId?: string;
   botId?: string;
   botToken?: string;
@@ -48,6 +50,8 @@ export interface AddUserInput {
   is_admin?: boolean;
   is_bot?: boolean;
   tz?: string;
+  /** Profile picture (an http(s), root-relative or data:image URL). Without it the UI shows initials. */
+  image?: string;
 }
 
 export interface AddChannelInput {
@@ -117,6 +121,11 @@ export class Store {
   /** Ephemeral messages (chat.postEphemeral, command responses). Not part of history. */
   readonly ephemerals: SlackMessage[] = [];
   readonly apiCalls: ApiCall[] = [];
+  /**
+   * State of a GitHub PR or issue by URL ("open", "draft", "merged" or "closed"). The UI shows it
+   * on the link's chip; the mock never calls GitHub. Not journaled.
+   */
+  readonly linkStates = new Map<string, string>();
   readonly assistantThreads = new Map<
     string,
     {
@@ -160,6 +169,8 @@ export class Store {
         is_bot: true,
       });
     }
+    // Set after replay too: a journal written without the icon still shows it.
+    if (opts.appIcon) this.user(this.bot.userId).profile.image_72 = opts.appIcon;
   }
 
   // ---------------------------------------------------------------- events
@@ -255,6 +266,7 @@ export class Store {
         real_name_normalized: realName,
         display_name_normalized: input.name,
         email: input.email,
+        image_72: input.image,
         title: input.title,
         status_text: input.status,
         team: this.team.id,

@@ -163,6 +163,8 @@ export async function screenshot(url: string, opts: ScreenshotOptions): Promise<
       "--hide-scrollbars",
       "--no-first-run",
       "--no-default-browser-check",
+      // Headless Chrome reports no pointer, which would lay the page out as a touch screen.
+      "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4",
       `--window-size=${width},${height}`,
       `--screenshot=${opts.out}`,
       target.toString(),

@@ -21,6 +21,7 @@ import {
   HttpDeliveryStoppedError,
 } from "./http-delivery.ts";
 import { slackId } from "./ids.ts";
+import { fontFile } from "./render/css.ts";
 import { renderPage } from "./render/index.ts";
 import {
   type AckResult,
@@ -85,6 +86,8 @@ export interface SlackMockOptions extends StoreOptions {
   eventDelayMs?: number;
   /** Default width of the thread side panel in the HTML UI, e.g. "50%" or "640px". `?panel=` overrides per request. */
   panelWidth?: string;
+  /** Theme of the HTML UI: "light" (default) or "dark". `?theme=` overrides per request, `SLACK_MOCK_THEME` sets it from the environment. */
+  theme?: "light" | "dark";
   /**
    * Public base URL (e.g. "https://demo.slack-mock.dev") used in every URL the mock hands out:
    * Socket Mode link, file download and upload URLs, response_urls, permalinks. When unset, URLs
@@ -386,6 +389,17 @@ export class SlackMock {
       if (path.startsWith("/actions/"))
         return await this.handleResponseUrl(req, path.slice("/actions/".length));
       if (path.startsWith("/mock/")) return await this.handleAdmin(req, path.slice(6), url);
+      const font = /^\/fonts\/lato-(\d+)\.woff2$/.exec(path);
+      if (font) {
+        const bytes = fontFile(font[1]!);
+        if (!bytes) return new Response("not found", { status: 404 });
+        return new Response(Buffer.from(bytes), {
+          headers: {
+            "content-type": "font/woff2",
+            "cache-control": "public, max-age=31536000, immutable",
+          },
+        });
+      }
       const events = /^\/c\/([^/]+)\/events\/?$/.exec(path);
       if (events) {
         const channel = this.store.channelByName(events[1]!)?.id ?? events[1]!;
@@ -626,6 +640,9 @@ export class SlackMock {
       threadView: url.searchParams.has("full") ? ("full" as const) : ("panel" as const),
       live: url.searchParams.get("live") !== "0",
       writeGated: this.writeGated,
+      theme: url.searchParams.get("theme") ?? undefined,
+      defaultTheme: this.opts.theme,
+      fontBase: "/fonts",
     };
     let html: string;
     if (path === "/" || path === "") html = renderPage(this.store, { kind: "index" }, opts);
