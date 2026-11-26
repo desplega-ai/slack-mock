@@ -75,14 +75,19 @@ describe("mrkdwn", () => {
   });
 
   test("user mentions resolve through the store, unknown ids fall back", () => {
-    expect(mrkdwnToHtml("hi <@U0ALICE>", ctx)).toBe(`hi <span class="sm-pill">@alice</span>`);
+    // A known user is a chip: a small avatar, then the name.
+    expect(mrkdwnToHtml("hi <@U0ALICE>", ctx)).toMatch(
+      /^hi <span class="sm-pill sm-chip sm-chip-user"><span class="sm-chip-av"[^>]*>AE<\/span>@alice<\/span>$/,
+    );
     expect(mrkdwnToHtml("hi <@U0NOBODY>", ctx)).toContain("@U0NOBODY");
   });
 
   test("channel mentions, broadcasts, usergroups and dates", () => {
+    // A known channel is a chip that links to its page.
     expect(mrkdwnToHtml("see <#C0GEN|general>", ctx)).toContain(
-      `<span class="sm-pill">#general</span>`,
+      `<a class="sm-pill sm-chip sm-chip-channel" href="/c/C0GEN">#general</a>`,
     );
+    expect(mrkdwnToHtml("see <#C0NOPE|gone>", ctx)).toContain(`<span class="sm-pill">#gone</span>`);
     expect(mrkdwnToHtml("see <#C0GEN>", ctx)).toContain("#general");
     expect(mrkdwnToHtml("<!here> please", ctx)).toContain(`<span class="sm-pill">@here</span>`);
     expect(mrkdwnToHtml("<!channel>", ctx)).toContain("@channel");

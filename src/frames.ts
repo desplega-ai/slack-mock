@@ -27,6 +27,8 @@ export interface FramesOptions {
   height?: number;
   /** Also render `final-desktop.png` (`?screenshot=0`, 1280x900). Default true. */
   desktop?: boolean;
+  /** "light" (default) or "dark". */
+  theme?: "light" | "dark";
 }
 
 export interface Frame {
@@ -106,7 +108,7 @@ export async function frames(opts: FramesOptions): Promise<FramesResult> {
     const size = { width: opts.width ?? 800, height: opts.height ?? 700 };
     for (const [i, { line, change }] of selected.entries()) {
       const path = join(out, `${String(i + 1).padStart(2, "0")}-${change.kind}.png`);
-      await shoot(storeAfter(line), path, { screenshot: true }, size);
+      await shoot(storeAfter(line), path, { screenshot: true, theme: opts.theme }, size);
       frames.push({ index: line, kind: change.kind, path });
     }
     const finalThread = join(out, "final-thread.png");
@@ -117,7 +119,7 @@ export async function frames(opts: FramesOptions): Promise<FramesResult> {
       await shoot(
         full,
         finalDesktop,
-        { screenshot: false, live: false },
+        { screenshot: false, live: false, theme: opts.theme },
         { width: 1280, height: 900 },
       );
     }

@@ -2,8 +2,8 @@
 // Everything unknown degrades to a small gray "unsupported: <type>" box instead
 // of throwing, because agents can post arbitrary blocks through slack-post.
 
+import { channelChip, linkChip, userChip } from "./chips.ts";
 import {
-  displayName,
   emojiChar,
   emojiFromUnicode,
   escapeHtml,
@@ -151,21 +151,19 @@ function richElement(v: unknown, ctx: RenderContext): string {
       const url = safeUrl(str(el.url));
       const label = plainTextToHtml(str(el.text) || str(el.url));
       if (!url) return label;
+      const chip = linkChip(str(el.url), str(el.text) ? label : "", ctx);
+      if (chip) return chip;
       return richStyle(
         `<a class="sm-link" href="${url}" target="_blank" rel="noopener">${label}</a>`,
         style,
       );
     }
-    case "user": {
-      const user = ctx.users.get(str(el.user_id));
-      return `<span class="sm-pill">@${escapeHtml(user ? displayName(user) : str(el.user_id))}</span>`;
-    }
+    case "user":
+      return userChip(ctx.users.get(str(el.user_id)), str(el.user_id));
     case "usergroup":
       return `<span class="sm-pill">@${escapeHtml(str(el.usergroup_id))}</span>`;
-    case "channel": {
-      const channel = ctx.channels.get(str(el.channel_id));
-      return `<span class="sm-pill">#${escapeHtml(channel ? channel.name : str(el.channel_id))}</span>`;
-    }
+    case "channel":
+      return channelChip(ctx.channels.get(str(el.channel_id)), str(el.channel_id));
     case "broadcast":
       return `<span class="sm-pill">@${escapeHtml(str(el.range) || "channel")}</span>`;
     case "emoji": {

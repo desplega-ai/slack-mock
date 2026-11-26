@@ -8,12 +8,13 @@ const USAGE = `slack-mock: a mock Slack server (Web API + Socket Mode) for testi
 
 Usage:
   slack-mock serve [--port 4040] [--host 127.0.0.1] [--data ./data/slack.jsonl] [--manifest app.json]
-                   [--no-seed] [--quiet] [--panel 50] [--auth user:pass] [--public-url https://mock.example.com]
+                   [--no-seed] [--quiet] [--panel 50] [--theme light|dark] [--auth user:pass]
+                   [--public-url https://mock.example.com]
                    [--http-events-url URL --signing-secret SECRET [--http-interactivity-url URL]
                     [--http-commands-url URL] [--http-retry-delays-ms 1000,5000,30000]]
   slack-mock screenshot <url> --out shot.png [--width 800] [--height 1000]
   slack-mock frames --journal data.jsonl --channel C0GENERAL0 [--thread 1788516626.286000] --out ./frames
-                    [--manifest app.json] [--width 800] [--height 700] [--no-desktop]
+                    [--manifest app.json] [--width 800] [--height 700] [--no-desktop] [--theme light|dark]
 
 frames renders the thread (or, without --thread, the channel) as it looked after every journal
 line that touched it: one PNG per line, then final-thread.png and final-desktop.png.
@@ -23,6 +24,11 @@ and the URLs of the HTML views. Inject messages with the admin API, e.g.
   curl -X POST http://127.0.0.1:4040/mock/messages -H 'content-type: application/json' \\
        -d '{"channel":"general","user":"alice","text":"<@U0BOT00000> hello"}'
 `;
+
+function themeArg(value: string | undefined): "light" | "dark" | undefined {
+  if (value === undefined || value === "light" || value === "dark") return value;
+  throw new Error(`--theme must be "light" or "dark", got "${value}"`);
+}
 
 async function main(argv: string[]): Promise<void> {
   const [command, ...rest] = argv;
@@ -37,6 +43,7 @@ async function main(argv: string[]): Promise<void> {
         "no-seed": { type: "boolean", default: false },
         quiet: { type: "boolean", default: false },
         panel: { type: "string" },
+        theme: { type: "string" },
         auth: { type: "string" },
         "public-url": { type: "string" },
         "http-events-url": { type: "string" },
@@ -62,6 +69,7 @@ async function main(argv: string[]): Promise<void> {
           }
         : undefined,
       panelWidth: values.panel,
+      theme: themeArg(values.theme),
       adminAuth: values.auth,
       publicUrl: values["public-url"],
       port: Number(values.port),
@@ -123,6 +131,7 @@ async function main(argv: string[]): Promise<void> {
         width: { type: "string", default: "800" },
         height: { type: "string", default: "700" },
         "no-desktop": { type: "boolean", default: false },
+        theme: { type: "string" },
       },
     });
     if (!values.journal || !values.channel || !values.out)
@@ -136,6 +145,7 @@ async function main(argv: string[]): Promise<void> {
       width: Number(values.width),
       height: Number(values.height),
       desktop: !values["no-desktop"],
+      theme: themeArg(values.theme),
     });
     for (const f of result.frames) console.log(`${f.index}\t${f.kind}\t${f.path}`);
     console.log(`final-thread=${result.finalThread}`);
